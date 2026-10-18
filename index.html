@@ -108,9 +108,11 @@ form.search input::placeholder{color:var(--sub)}
 .xbtn{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--bg);display:grid;place-items:center;color:var(--red);flex:none}
 
 /* модальные панели */
-.panel{position:fixed;inset:0;z-index:3000;background:rgba(32,33,36,.4);display:flex;align-items:flex-end;justify-content:center}
-.panel .box{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:6px 18px calc(env(safe-area-inset-bottom,0px) + 18px)}
-.phead{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:1}
+.panel{position:fixed;inset:0;z-index:3000;background:rgba(32,33,36,.4);display:flex;align-items:flex-end;justify-content:center;padding-top:calc(env(safe-area-inset-top,0px) + 10px)}
+.panel .box{background:var(--bg);width:100%;max-width:640px;max-height:calc(100vh - env(safe-area-inset-top,0px) - 10px);max-height:calc(100dvh - env(safe-area-inset-top,0px) - 10px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:20px 20px 0 0;padding:6px 18px calc(env(safe-area-inset-bottom,0px) + 18px)}
+.phead{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:2}
+.phead .ibtn{width:44px;height:44px;background:var(--soft);color:var(--text)}
+.pclose{display:flex;width:100%;margin-top:18px}
 .phead h2{flex:1;font-size:20px;font-weight:500;margin:0}
 .sec{margin-top:14px}
 .sec h3{font-size:13px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px}
@@ -3092,6 +3094,8 @@ renderSources = function(){ _renderSources2(); renderTrips(); };
 const _openPanel = openPanel;
 openPanel = function(id){ _openPanel(id); if (id === "setPanel"){ renderRpSet(); renderEngSet(); renderNavSet(); } };
 drawStops(); drawAvoid(); drawEw(); drawPark();
+// большая кнопка «Закрыть» внизу каждой панели: до верхнего крестика на айфонах с «бровью» бывает не дотянуться
+document.querySelectorAll(".panel .box").forEach(b => { const c = document.createElement("button"); c.type = "button"; c.className = "btn pclose"; c.textContent = "Закрыть"; c.onclick = closePanels; b.appendChild(c); });
 </script>
 </body>
 </html>
