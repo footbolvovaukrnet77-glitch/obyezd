@@ -105,4 +105,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for f in cameras.json pois.json signals.json; do if [ -f "$f" ]; then git add "$f"; fi; done
-          git diff --cached --quiet || (git commit -m "Update cameras" && git push)
+          git diff --cached --quiet && exit 0
+          git commit -m "Update cameras and places"
+          for i in 1 2 3; do git pull --rebase origin main && git push && exit 0; sleep 10; done
+          exit 1
