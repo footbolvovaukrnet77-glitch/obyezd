@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Объезд">
+<meta name="theme-color" content="#11151b">
+<title>Объезд</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Одна тёмная тема: приложение для машины, ночью и днём читается одинаково. Карта на весь экран, управление в нижней панели под большой палец. */
+:root{
+  --bg:#11151b; --panel:#181d25; --line:#2a313c; --fg:#e8ecf1; --mute:#8d97a5;
+  --amber:#f2b134; --ok:#3ecf8e; --warn:#f2b134; --bad:#ff5d5d; --blue:#4da3ff;
+  --r:14px; color-scheme:dark;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;overflow:hidden}
+#map{position:fixed;inset:0;background:var(--bg)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* верх */
+.top{position:fixed;left:0;right:0;top:0;z-index:1000;padding:calc(env(safe-area-inset-top,0px) + 10px) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.top>*{pointer-events:auto}
+form.search{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:5px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+form.search input{flex:1;min-width:0;background:transparent;border:0;padding:9px 10px;outline:none}
+form.search button{background:var(--amber);color:#1a1405;border:0;border-radius:10px;padding:0 14px;font-weight:600}
+.results{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:11px 12px;color:var(--fg)}
+.results button:first-child{border-top:0}
+.results small{color:var(--mute);display:block;margin-top:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:13px;font-variant-numeric:tabular-nums;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mute);flex:none}
+.chip[data-s="gps"] .dot{background:var(--ok)}
+.chip[data-s="weak"] .dot{background:var(--blue)}
+.chip[data-s="dr"] .dot{background:var(--warn)}
+.chip[data-s="spoof"] .dot{background:var(--bad);animation:blink 1s infinite}
+.chip[data-s="none"] .dot{background:var(--bad)}
+@keyframes blink{50%{opacity:.25}}
+button.chip{color:var(--fg)}
+
+/* баннер навигации */
+.nav{background:var(--amber);color:#1a1405;border-radius:var(--r);padding:12px 14px;display:flex;gap:12px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.nav .dist{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nav .instr{font-size:16px;font-weight:600;line-height:1.25;min-width:0}
+.nav .instr small{display:block;font-weight:500;opacity:.75;font-size:13px;margin-top:2px}
+
+/* низ */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:var(--panel);border-top:1px solid var(--line);border-radius:18px 18px 0 0;padding:6px max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(14px,env(safe-area-inset-left,0px));box-shadow:0 -8px 30px rgba(0,0,0,.5);max-height:62vh;overflow-y:auto}
+.handle{display:block;margin:0 auto 6px;width:56px;height:20px;border:0;background:none;position:relative}
+.handle::after{content:"";position:absolute;left:12px;right:12px;top:8px;height:4px;border-radius:2px;background:var(--line)}
+.sheet.min .more{display:none}
+.routes{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.routes::-webkit-scrollbar{display:none}
+.rc{flex:none;min-width:118px;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:9px 11px;color:var(--fg)}
+.rc[aria-pressed="true"]{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
+.rc b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.rc span{font-size:12px;color:var(--mute)}
+.rc em{display:inline-block;font-style:normal;font-size:11px;margin-top:4px;padding:1px 6px;border-radius:6px;background:rgba(255,93,93,.15);color:var(--bad)}
+.empty{color:var(--mute);font-size:14px;padding:6px 2px 2px;line-height:1.4}
+.row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{flex:1 1 auto;min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:0 14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:var(--fg)}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#1a1405}
+.btn.danger{border-color:rgba(255,93,93,.5);color:var(--bad)}
+.btn:disabled,.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
+.set{margin-top:14px;display:grid;gap:12px}
+.set label{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.set .lbl{display:flex;flex-direction:column;gap:2px;min-width:0}
+.set .lbl small{color:var(--mute);font-size:12px;line-height:1.35}
+input[type=range]{width:100%;accent-color:var(--amber)}
+.levels{display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-top:-4px;text-transform:uppercase;letter-spacing:.04em}
+.sw{appearance:none;-webkit-appearance:none;flex:none;width:50px;height:30px;border-radius:15px;background:var(--line);position:relative;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
+.sw:checked{background:var(--bad)}
+.sw:checked::after{left:23px}
+#voice:checked{background:var(--ok)}
+.note{font-size:12px;color:var(--mute);line-height:1.45;border-top:1px solid var(--line);padding-top:10px}
+.note b{color:var(--fg);font-weight:600}
+.warnline{font-size:13px;color:var(--warn);margin-top:8px;line-height:1.4}
+
+/* всплывашка на карте */
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--fg);border:1px solid var(--line)}
+.leaflet-popup-content{margin:10px;display:grid;gap:6px;min-width:170px}
+.leaflet-popup-content button{min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font-weight:600}
+.leaflet-container a.leaflet-popup-close-button{color:var(--mute)}
+.leaflet-control-attribution{background:rgba(17,21,27,.7)!important;color:var(--mute)!important;font-size:10px}
+.leaflet-control-attribution a{color:var(--mute)!important}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 50%);z-index:2000;background:#000c;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;max-width:86vw;text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <div id="navBanner" class="nav" hidden>
+    <div class="dist" id="navDist">—</div>
+    <div class="instr" id="navInstr">—<small id="navEta"></small></div>
+  </div>
+  <form class="search" id="searchForm" autocomplete="off">
+    <input id="q" type="search" placeholder="Куда едем? Адрес или место" enterkeyhint="search">
+    <button type="submit">Найти</button>
+  </form>
+  <div class="results" id="results" hidden></div>
+  <div class="chips">
+    <span class="chip" id="posChip" data-s="none"><span class="dot"></span><span id="posText">Ищу положение…</span></span>
+    <button class="chip" id="sensorsBtn" type="button">Включить датчики</button>
+    <button class="chip" id="centerBtn" type="button">Где я</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheet">
+  <button class="handle" id="handle" type="button" aria-label="Свернуть или развернуть панель"></button>
+  <div class="routes" id="routes"><div class="empty">Найдите адрес или нажмите на карту и выберите «Сюда». Нажатие на карту также ставит отметку «Пробка тут».</div></div>
+  <div class="row">
+    <button class="btn primary" id="goBtn" type="button" disabled>Поехать</button>
+    <button class="btn" id="stuckBtn" type="button" disabled>Стою. Объезд</button>
+  </div>
+  <div class="more">
+    <div class="row">
+      <a class="btn" id="gmapsBtn" href="#" target="_blank" rel="noopener" aria-disabled="true">Проверить пробки в Google Картах</a>
+    </div>
+    <div class="set">
+      <div>
+        <label for="detour" class="lbl" style="display:flex"><span>Насколько окольно</span><small id="detourHint"></small></label>
+        <input type="range" id="detour" min="0" max="3" step="1" value="2">
+        <div class="levels"><span>Обычно</span><span>Срезать</span><span>Кварталы</span><span>Любые дворы</span></div>
+      </div>
+      <label for="illegal">
+        <span class="lbl"><span>Запрещённые повороты</span><small>Маршрут может игнорировать запреты поворотов. Встречку по односторонней не строит никогда.</small></span>
+        <input type="checkbox" class="sw" id="illegal">
+      </label>
+      <label for="voice">
+        <span class="lbl"><span>Голосовые подсказки</span><small>Работают, пока экран включён</small></span>
+        <input type="checkbox" class="sw" id="voice" checked>
+      </label>
+      <div class="row" style="margin-top:0">
+        <button class="btn" id="clearJams" type="button">Убрать отметки пробок (<span id="jamCount">0</span>)</button>
+      </div>
+      <p class="note"><b>Как работает защита от РЭБ.</b> Если координаты прыгают или стоят на месте, пока машина едет, приложение их отбрасывает и считает путь само: по последней надёжной скорости, датчику движения и повороту машины, привязывая позицию к маршруту. Если позиция уплыла, нажмите на карте точку и выберите «Я здесь». Экран должен быть включён: в фоне Safari не даёт работать датчикам.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+/* ============ настройки ============ */
+const VALHALLA = "https://valhalla1.openstreetmap.de/route";
+const NOMINATIM = "https://nominatim.openstreetmap.org/search";
+const KYIV = [50.4501, 30.5234];
+
+/* ============ хранилище ============ */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem("obz_"+k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("obz_"+k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ============ геометрия ============ */
+const R = 6371000, rad = x => x*Math.PI/180, deg = x => x*180/Math.PI;
+function dist(a, b){
+  const dLat = rad(b.lat-a.lat), dLon = rad(b.lon-a.lon);
+  const s = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function bearing(a, b){
+  const y = Math.sin(rad(b.lon-a.lon))*Math.cos(rad(b.lat));
+  const x = Math.cos(rad(a.lat))*Math.sin(rad(b.lat)) - Math.sin(rad(a.lat))*Math.cos(rad(b.lat))*Math.cos(rad(b.lon-a.lon));
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
+function move(p, brg, d){
+  const dr = d/R, b = rad(brg), la = rad(p.lat), lo = rad(p.lon);
+  const la2 = Math.asin(Math.sin(la)*Math.cos(dr) + Math.cos(la)*Math.sin(dr)*Math.cos(b));
+  const lo2 = lo + Math.atan2(Math.sin(b)*Math.sin(dr)*Math.cos(la), Math.cos(dr) - Math.sin(la)*Math.sin(la2));
+  return {lat: deg(la2), lon: deg(lo2)};
+}
+const angDiff = (a, b) => { let d = ((b - a + 540) % 360) - 180; return d; };
+function decodePolyline(str, precision = 6){
+  let i = 0, lat = 0, lon = 0; const out = [], f = Math.pow(10, precision);
+  while (i < str.length){
+    let b, shift = 0, res = 0;
+    do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (res & 1) ? ~(res >> 1) : (res >> 1);
+    shift = 0; res = 0;
+    do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lon += (res & 1) ? ~(res >> 1) : (res >> 1);
+    out.push({lat: lat/f, lon: lon/f});
+  }
+  return out;
+}
+function squareRing(p, r){
+  const dLat = r/111320, dLon = r/(111320*Math.cos(rad(p.lat)));
+  return [[p.lon-dLon,p.lat-dLat],[p.lon+dLon,p.lat-dLat],[p.lon+dLon,p.lat+dLat],[p.lon-dLon,p.lat+dLat],[p.lon-dLon,p.lat-dLat]];
+}
+/* проекция точки на ломаную маршрута: расстояние от начала и отступ */
+function project(route, p){
+  const c = route.coords, cum = route.cum;
+  let best = {d: Infinity, along: 0, i: 0};
+  const k = Math.cos(rad(p.lat))*111320;
+  for (let i = 0; i < c.length-1; i++){
+    const ax = c[i].lon*k, ay = c[i].lat*111320, bx = c[i+1].lon*k, by = c[i+1].lat*111320;
+    const px = p.lon*k, py = p.lat*111320;
+    const dx = bx-ax, dy = by-ay, L = dx*dx+dy*dy;
+    let t = L ? ((px-ax)*dx + (py-ay)*dy)/L : 0; t = Math.max(0, Math.min(1, t));
+    const qx = ax+t*dx, qy = ay+t*dy, d = Math.hypot(px-qx, py-qy);
+    if (d < best.d) best = {d, along: cum[i] + t*(cum[i+1]-cum[i]), i};
+  }
+  return best;
+}
+function pointAt(route, along){
+  const c = route.coords, cum = route.cum;
+  along = Math.max(0, Math.min(cum[cum.length-1], along));
+  let i = 0; while (i < cum.length-2 && cum[i+1] < along) i++;
+  const seg = cum[i+1]-cum[i] || 1, t = (along-cum[i])/seg;
+  return {lat: c[i].lat + (c[i+1].lat-c[i].lat)*t, lon: c[i].lon + (c[i+1].lon-c[i].lon)*t, brg: bearing(c[i], c[i+1])};
+}
+function bearingAt(route, along, span = 25){
+  const a = pointAt(route, along), b = pointAt(route, along+span);
+  return bearing(a, b);
+}
+
+/* ============ карта ============ */
+const map = L.map("map", {zoomControl: false, attributionControl: true}).setView(KYIV, 13);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  maxZoom: 20, subdomains: "abcd",
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © CARTO · маршруты Valhalla'
+}).addTo(map);
+
+const meAcc = L.circle(KYIV, {radius: 0, color: "#4da3ff", weight: 1, fillOpacity: .12, interactive: false});
+const meDot = L.circleMarker(KYIV, {radius: 8, color: "#fff", weight: 3, fillColor: "#4da3ff", fillOpacity: 1, interactive: false});
+const rawDot = L.circleMarker(KYIV, {radius: 5, color: "#ff5d5d", weight: 2, fillOpacity: 0, dashArray: "2 3", interactive: false});
+let destMarker = null;
+const routeLayer = L.layerGroup().addTo(map);
+const jamLayer = L.layerGroup().addTo(map);
+
+/* ============ состояние ============ */
+let est = null;            // наша оценка положения {lat,lon,unc,t}
+let mode = "none";         // gps | weak | dr | spoof | none
+let lastAcceptT = 0, lastFixT = 0;
+let speedEst = 0, cruise = 8; // м/с
+let follow = true;
+let dest = store.get("dest", null);
+let jams = store.get("jams", []).filter(j => Date.now() - j.t < 3*3600e3);
+let routes = [], sel = 0, navigating = false, along = 0;
+let spokenFor = -1, offRouteSince = 0, lastReroute = 0;
+const suspect = {since: 0, chain: [], staticSince: 0, lastPos: null};
+
+/* ============ датчики движения ============ */
+const motion = {on: false, buf: [], moving: true, still: 0.05, rot: [], heading: null, hdgOffset: null, hdgHist: []};
+function onMotion(e){
+  const a = e.acceleration && e.acceleration.x != null ? e.acceleration : null;
+  let m;
+  if (a) m = Math.hypot(a.x, a.y, a.z);
+  else if (e.accelerationIncludingGravity){ const g = e.accelerationIncludingGravity; m = Math.abs(Math.hypot(g.x, g.y, g.z) - 9.81); }
+  else return;
+  const now = performance.now();
+  motion.buf.push([now, m]);
+  while (motion.buf.length && now - motion.buf[0][0] > 3000) motion.buf.shift();
+  if (e.rotationRate && e.accelerationIncludingGravity){
+    // поворот вокруг вертикали: проецируем вращение на направление силы тяжести, чтобы тряска не считалась поворотом
+    const r = e.rotationRate, gi = e.accelerationIncludingGravity, ac = a || {x:0, y:0, z:0};
+    const gx = gi.x-ac.x, gy = gi.y-ac.y, gz = gi.z-ac.z, gn = Math.hypot(gx, gy, gz) || 9.81;
+    const yaw = ((r.beta||0)*gx + (r.gamma||0)*gy + (r.alpha||0)*gz)/gn;
+    const dt = (e.interval || 0.016) > 1 ? e.interval/1000 : (e.interval || 0.016);
+    motion.rot.push([now, yaw*dt]);
+    while (motion.rot.length && now - motion.rot[0][0] > 6000) motion.rot.shift();
+  }
+  if (motion.buf.length > 20){
+    const vals = motion.buf.map(x => x[1]);
+    const mean = vals.reduce((s, v) => s+v, 0)/vals.length;
+    const sd = Math.sqrt(vals.reduce((s, v) => s+(v-mean)**2, 0)/vals.length);
+    // калибровка уровня «стоим» по GPS
+    if (mode === "gps" && speedEst < 0.4) motion.still = motion.still*0.95 + sd*0.05;
+    motion.moving = sd > motion.still*1.8 + 0.025;
+  }
+}
+function onOrient(e){
+  let h = null;
+  if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;
+  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
+  if (h == null) return;
+  motion.compass = h;
+  const now = performance.now();
+  motion.hdgHist.push([now, h]);
+  while (motion.hdgHist.length && now - motion.hdgHist[0][0] > 8000) motion.hdgHist.shift();
+}
+function heading(){
+  if (motion.compass == null) return null;
+  return (motion.compass + (motion.hdgOffset || 0) + 360) % 360;
+}
+function recentTurn(){
+  // поворот машины за последние ~6 секунд: по компасу или по гироскопу
+  let byCompass = 0;
+  const h = motion.hdgHist;
+  if (h.length > 4){
+    const now = performance.now();
+    const old = h.find(x => now - x[0] < 6500) || h[0];
+    byCompass = Math.abs(angDiff(old[1], h[h.length-1][1]));
+  }
+  const byGyro = Math.abs(motion.rot.reduce((s, x) => s + x[1], 0));
+  return Math.max(byCompass, byGyro*0.8);
+}
+async function enableSensors(){
+  try{
+    if (typeof DeviceMotionEvent !== "undefined" && DeviceMotionEvent.requestPermission){
+      const r = await DeviceMotionEvent.requestPermission(); if (r !== "granted") throw 0;
+    }
+    if (typeof DeviceOrientationEvent !== "undefined" && DeviceOrientationEvent.requestPermission){
+      const r = await DeviceOrientationEvent.requestPermission(); if (r !== "granted") throw 0;
+    }
+    window.addEventListener("devicemotion", onMotion);
+    window.addEventListener("deviceorientation", onOrient);
+    motion.on = true;
+    sensorsBtn.textContent = "Датчики включены";
+    sensorsBtn.disabled = true;
+  }catch(e){
+    toast("Без доступа к датчикам защита от РЭБ слабее. Разрешите «Движение и ориентация» в настройках Safari.");
+  }
+}
+
+/* ============ приём GPS с проверкой на подмену ============ */
+function onFix(pos){
+  const c = pos.coords;
+  const f = {lat: c.latitude, lon: c.longitude, acc: c.accuracy, spd: c.speed, hdg: c.heading, t: Date.now()};
+  lastFixT = f.t;
+  rawDot.setLatLng([f.lat, f.lon]);
+  if (!map.hasLayer(rawDot)) rawDot.addTo(map);
+
+  if (!est){ accept(f); return; }
+  if (f.acc > 400 && mode !== "none"){ return; } // только сотовая сеть, слишком грубо
+
+  const d = dist(est, f);
+  const sinceAcc = (f.t - lastAcceptT)/1000;
+  const allowed = est.unc + f.acc*1.5 + 20 + (mode === "gps" ? Math.max(speedEst, 3)*Math.min(sinceAcc, 5) : 0);
+
+  // координаты стоят, а машина едет: типичная подмена «в аэропорт»
+  if (suspect.lastPos && dist(suspect.lastPos, f) < 3 && motion.on && motion.moving && speedEst > 2){
+    if (!suspect.staticSince) suspect.staticSince = f.t;
+  } else suspect.staticSince = 0;
+  suspect.lastPos = f;
+  const frozen = suspect.staticSince && f.t - suspect.staticSince > 15000;
+
+  const implied = sinceAcc > 0 ? d/sinceAcc : 0;
+  const teleport = implied > 70 && d > 250;
+
+  if (!frozen && !teleport && d <= allowed){ suspect.chain = []; suspect.since = 0; accept(f); return; }
+
+  // подозрительная точка
+  if (!suspect.since) suspect.since = f.t;
+  const ch = suspect.chain;
+  if (ch.length && dist(ch[ch.length-1], f) > 60*Math.max(1, (f.t-ch[ch.length-1].t)/1000)) suspect.chain = [];
+  suspect.chain.push(f);
+  setMode(frozen || teleport ? "spoof" : (mode === "gps" ? "spoof" : mode));
+  // GPS долго ведёт себя правдоподобно и движется сам по себе — значит, уплыли мы
+  const chainOk = suspect.chain.length > 30 && f.t - suspect.chain[0].t > 90000 && !frozen &&
+    dist(suspect.chain[0], f) > 200;
+  if (chainOk){ suspect.chain = []; suspect.since = 0; accept(f, true); }
+}
+function onFixError(){ /* сигнала нет — работает счисление */ }
+
+function accept(f, force){
+  const prev = est;
+  const now = f.t;
+  let spd = f.spd != null && f.spd >= 0 ? f.spd : null;
+  if (spd == null && prev && now > lastAcceptT) spd = dist(prev, f)/((now-lastAcceptT)/1000);
+  if (spd != null && spd < 70){
+    speedEst = speedEst*0.6 + spd*0.4;
+    if (spd > 2.5) cruise = cruise*0.9 + spd*0.1;
+  }
+  // калибровка компаса под крепление телефона
+  if (f.hdg != null && f.hdg >= 0 && spd > 5 && motion.compass != null){
+    const off = angDiff(motion.compass, f.hdg);
+    motion.hdgOffset = motion.hdgOffset == null ? off : (motion.hdgOffset + angDiff(motion.hdgOffset, off)*0.1 + 360) % 360;
+  }
+  est = {lat: f.lat, lon: f.lon, unc: f.acc, t: now};
+  lastAcceptT = now;
+  setMode(f.acc > 120 ? "weak" : "gps");
+  if (navigating && routes[sel]){
+    const pr = project(routes[sel], est);
+    if (pr.d < 60 + f.acc) along = pr.along;
+  }
+  if (force) toast("Сигнал снова выглядит надёжным. Позиция обновлена.");
+  render();
+}
+
+/* ============ счисление пути, когда GPS нет или подменён ============ */
+let lastTick = performance.now(), stopT = 0, moveStart = 0, holdSince = 0;
+function tick(){
+  const nowP = performance.now(), dt = Math.min(2, (nowP - lastTick)/1000); lastTick = nowP;
+  const now = Date.now();
+  if (!est){ return; }
+  const gpsFresh = (mode === "gps" || mode === "weak") && now - lastAcceptT < 4000;
+  if (gpsFresh) return;
+  if (mode !== "spoof") setMode("dr");
+
+  // скорость: стоим, разгоняемся или едем
+  let v;
+  if (motion.on){
+    if (!motion.moving){ v = 0; stopT = nowP; moveStart = 0; }
+    else {
+      if (stopT && !moveStart) moveStart = nowP;
+      const ramp = moveStart ? Math.min(1, (nowP - moveStart)/10000) : 1;
+      v = (speedEst > 1.5 ? speedEst : cruise) * ramp;
+      if (ramp < 1) v = cruise*ramp;
+    }
+  } else v = speedEst;
+  speedEst = speedEst*0.98 + v*0.02;
+
+  const step = v*dt;
+  if (navigating && routes[sel]){
+    const r = routes[sel];
+    const nm = nextTurn(r, along);
+    let target = along + step;
+    if (nm){
+      const turnAmt = Math.abs(nm.turn);
+      // впереди поворот: не уезжаем за него, пока датчики не подтвердят, что машина повернула
+      if (turnAmt > 45 && target > nm.at + 30){
+        const t = recentTurn();
+        if (!holdSince) holdSince = nowP;
+        // поворот не почувствовали за 25 с езды — считаем, что проехали его незаметно
+        if (t > 45 || !motion.on || nowP - holdSince > 25000) { target = Math.max(target, nm.at + 15); est.unc = t > 45 ? Math.min(est.unc, 35) : est.unc + 60; holdSince = 0; }
+        else target = nm.at + 30;
+      } else if (target <= nm.at + 30) holdSince = 0;
+      // поворот почувствовали чуть раньше — подтягиваем позицию к перекрёстку
+      if (turnAmt > 45 && Math.abs(nm.at - along) < 120 + est.unc && recentTurn() > 50){
+        const h = heading();
+        const after = bearingAt(r, nm.at + 5, 40);
+        if (h == null || Math.abs(angDiff(h, after)) < 40){ target = Math.max(target, nm.at + 10); est.unc = Math.min(est.unc, 30); motion.rot = []; motion.hdgHist = []; }
+      }
+    }
+    along = target;
+    const p = pointAt(r, along);
+    est.lat = p.lat; est.lon = p.lon;
+  } else {
+    const h = heading();
+    if (h != null && step > 0){ const p = move(est, h, step); est.lat = p.lat; est.lon = p.lon; }
+  }
+  est.unc = Math.min(2000, est.unc + step*0.08 + 0.2*dt);
+  est.t = now;
+  render();
+}
+
+function nextTurn(r, a){
+  for (const m of r.maneuvers){
+    if (m.at > a - 10 && m.turn != null) return m;
+  }
+  return null;
+}
+
+/* ============ отображение позиции ============ */
+function setMode(m){
+  mode = m;
+  const chip = document.getElementById("posChip");
+  chip.dataset.s = m;
+}
+function render(){
+  if (!est) return;
+  meDot.setLatLng([est.lat, est.lon]); meAcc.setLatLng([est.lat, est.lon]).setRadius(est.unc);
+  if (!map.hasLayer(meDot)){ meAcc.addTo(map); meDot.addTo(map); }
+  const u = Math.round(est.unc);
+  const t = {gps: `GPS · ±${u} м`, weak: `Wi-Fi/сеть · ±${u} м`, dr: `Нет GPS · считаю сам · ±${u} м`,
+    spoof: `Подмена GPS · считаю сам · ±${u} м`, none: "Ищу положение…"}[mode];
+  document.getElementById("posText").textContent = t;
+  rawDot.setStyle({opacity: mode === "spoof" ? 1 : 0});
+  if (follow && navigating) map.panTo([est.lat, est.lon], {animate: true});
+  if (navigating) updateNav();
+}
+
+/* ============ маршруты ============ */
+const LEVELS = [
+  {hint: "Как обычный навигатор", o: {}},
+  {hint: "Срезает по второстепенным улицам", o: {use_highways: 0.4, use_living_streets: 0.5, service_penalty: 6, service_factor: 1.0}},
+  {hint: "Внутриквартальные проезды", o: {use_highways: 0.2, use_living_streets: 0.8, service_penalty: 0, service_factor: 0.9, destination_only_penalty: 60}},
+  {hint: "Через дворы, если там быстрее", o: {use_highways: 0, use_living_streets: 1, service_penalty: 0, service_factor: 0.7, destination_only_penalty: 0, maneuver_penalty: 2, use_tracks: 0.2}}
+];
+function settings(){
+  return {level: +detour.value, illegal: illegal.checked};
+}
+async function buildRoutes(fromPoint, quiet){
+  if (!dest) return;
+  const from = fromPoint || est;
+  if (!from){ toast("Нужна точка старта: дождитесь GPS или нажмите на карте «Я здесь»."); return; }
+  const s = settings();
+  const auto = Object.assign({gate_penalty: 600, private_access_penalty: 900}, LEVELS[s.level].o);
+  if (s.illegal) auto.ignore_restrictions = true;
+  auto.ignore_oneways = false; // против движения — никогда
+  const rings = jams.filter(j => dist(j, from) > 120 && dist(j, dest) > 80).map(j => squareRing(j, j.r || 70));
+  const body = {
+    locations: [{lat: from.lat, lon: from.lon, ...(navigating && heading() != null ? {heading: Math.round(heading()), heading_tolerance: 60} : {})}, {lat: dest.lat, lon: dest.lon}],
+    costing: "auto", costing_options: {auto}, alternates: 2,
+    directions_options: {language: "ru-RU", units: "kilometers"}
+  };
+  if (rings.length) body.exclude_polygons = rings;
+  if (!quiet) setRoutesText("Строю маршруты…");
+  try{
+    const res = await fetch(VALHALLA + "?json=" + encodeURIComponent(JSON.stringify(body)));
+    const data = await res.json();
+    if (!res.ok || !data.trip) throw new Error(data.error || "Маршрут не найден");
+    const trips = [data.trip, ...(data.alternates || []).map(a => a.trip)];
+    routes = trips.map((t, i) => toRoute(t, i, s));
+    sel = 0;
+    drawRoutes();
+    if (!navigating) map.fitBounds(L.latLngBounds(routes[0].coords.map(p => [p.lat, p.lon])), {padding: [40, 40], paddingBottomRight: [20, 260]});
+  }catch(e){
+    if (rings.length && !quiet){ toast("С отметками пробок проезда нет. Строю без них."); const saved = jams; jams = []; await buildRoutes(fromPoint, true); jams = saved; return; }
+    setRoutesText("Не удалось построить маршрут: " + (e.message || "нет связи") + ". Проверьте интернет и попробуйте снова.");
+  }
+}
+function toRoute(trip, i, s){
+  const leg = trip.legs[0];
+  const coords = decodePolyline(leg.shape);
+  const cum = [0]; for (let k = 1; k < coords.length; k++) cum.push(cum[k-1] + dist(coords[k-1], coords[k]));
+  const r = {coords, cum, time: trip.summary.time, len: trip.summary.length*1000, illegal: s.illegal, level: s.level, i};
+  r.maneuvers = leg.maneuvers.map(m => {
+    const at = cum[Math.min(m.begin_shape_index, cum.length-1)];
+    let turn = null;
+    if (m.begin_shape_index > 0 && m.begin_shape_index < coords.length-1){
+      const b1 = bearingAt(r, at - 30, 25), b2 = bearingAt(r, at + 5, 25);
+      turn = angDiff(b1, b2);
+    }
+    return {at, text: m.instruction, verbal: m.verbal_pre_transition_instruction || m.instruction, turn, type: m.type};
+  });
+  return r;
+}
+function drawRoutes(){
+  routeLayer.clearLayers();
+  routes.forEach((r, i) => {
+    if (i === sel) return;
+    L.polyline(r.coords.map(p => [p.lat, p.lon]), {color: "#6b7686", weight: 6, opacity: .8, bubblingMouseEvents: false}).on("click", () => selectRoute(i)).addTo(routeLayer);
+  });
+  const r = routes[sel];
+  if (r){
+    L.polyline(r.coords.map(p => [p.lat, p.lon]), {color: "#000", weight: 10, opacity: .35, interactive: false}).addTo(routeLayer);
+    L.polyline(r.coords.map(p => [p.lat, p.lon]), {color: "#f2b134", weight: 6, opacity: 1, interactive: false}).addTo(routeLayer);
+  }
+  const box = document.getElementById("routes"); box.innerHTML = "";
+  const fastest = Math.min(...routes.map(x => x.time));
+  routes.forEach((r, i) => {
+    const b = document.createElement("button");
+    b.className = "rc"; b.type = "button"; b.setAttribute("aria-pressed", i === sel);
+    const diff = Math.round((r.time - fastest)/60);
+    b.innerHTML = `<b>${fmtTime(r.time)}</b><span>${(r.len/1000).toFixed(1)} км · ${i === 0 ? "лучший" : diff > 0 ? "+" + diff + " мин" : "вариант " + (i+1)}</span>` +
+      (r.illegal ? `<br><em>может быть запрещённый поворот</em>` : "");
+    b.onclick = () => selectRoute(i);
+    box.appendChild(b);
+  });
+  goBtn.disabled = false; stuckBtn.disabled = false;
+  updateGmaps();
+  const w = document.getElementById("lvlWarn");
+  if (w) w.remove();
+  if (r && r.level >= 2){
+    const p = document.createElement("div"); p.id = "lvlWarn"; p.className = "warnline";
+    p.textContent = "Во дворах до 20 км/ч: дети, люди у подъездов, машины задом. Сквозной проезд жилой зоны по ПДР запрещён.";
+    box.after(p);
+  }
+}
+function selectRoute(i){ sel = i; drawRoutes(); if (navigating){ along = project(routes[sel], est).along; spokenFor = -1; } }
+function setRoutesText(t){ document.getElementById("routes").innerHTML = `<div class="empty">${t}</div>`; }
+function fmtTime(s){ const m = Math.round(s/60); return m < 60 ? m + " мин" : Math.floor(m/60) + " ч " + (m%60) + " мин"; }
+function fmtDist(m){ return m < 1000 ? (Math.round(m/10)*10) + " м" : (m/1000).toFixed(1) + " км"; }
+
+function updateGmaps(){
+  const a = document.getElementById("gmapsBtn"), r = routes[sel];
+  if (!r || !est){ a.setAttribute("aria-disabled", "true"); return; }
+  // промежуточные точки заставляют Google Карты ехать нашим объездом и показать время с пробками
+  const n = 8, wps = [];
+  for (let k = 1; k <= n; k++){ const p = pointAt(r, r.len*k/(n+1)); wps.push(p.lat.toFixed(6) + "," + p.lon.toFixed(6)); }
+  const o = navigating ? est : r.coords[0];
+  a.href = "https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=" + o.lat.toFixed(6) + "," + o.lon.toFixed(6) +
+    "&destination=" + dest.lat.toFixed(6) + "," + dest.lon.toFixed(6) + "&waypoints=" + encodeURIComponent(wps.join("|"));
+  a.removeAttribute("aria-disabled");
+}
+
+/* ============ навигация ============ */
+let wakeLock = null;
+async function startNav(){
+  if (!routes[sel] || !est){ toast("Нет точки старта. Нажмите на карте «Я здесь»."); return; }
+  navigating = true; follow = true;
+  along = project(routes[sel], est).along; spokenFor = -1;
+  goBtn.textContent = "Стоп"; goBtn.classList.remove("primary"); goBtn.classList.add("danger");
+  document.getElementById("navBanner").hidden = false;
+  document.getElementById("searchForm").hidden = true;
+  document.getElementById("sheet").classList.add("min");
+  map.setZoom(17);
+  try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){}
+  if (voice.checked && "speechSynthesis" in window) say("Поехали");
+  if (!motion.on) toast("Включите датчики: они держат позицию, когда глушат GPS.");
+  updateNav();
+}
+function stopNav(){
+  navigating = false;
+  goBtn.textContent = "Поехать"; goBtn.classList.add("primary"); goBtn.classList.remove("danger");
+  document.getElementById("navBanner").hidden = true;
+  document.getElementById("searchForm").hidden = false;
+  document.getElementById("sheet").classList.remove("min");
+  try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock = null;
+}
+function updateNav(){
+  const r = routes[sel]; if (!r) return;
+  const left = r.len - along;
+  const next = r.maneuvers.find(m => m.at > along + 5);
+  const nd = next ? next.at - along : left;
+  document.getElementById("navDist").textContent = fmtDist(Math.max(0, nd));
+  const instr = document.getElementById("navInstr");
+  instr.firstChild.nodeValue = next ? next.text : "Вы на месте";
+  const etaMin = Math.round((r.time * (left / r.len))/60);
+  document.getElementById("navEta").textContent = `осталось ${fmtDist(left)} · ~${etaMin} мин`;
+  if (next && nd < 250 && spokenFor !== next.at){ spokenFor = next.at; say(next.verbal); }
+  if (left < 30){ say("Вы приехали"); stopNav(); return; }
+  // съехали с маршрута — перестраиваем от текущего места (только при надёжном GPS)
+  if (mode === "gps"){
+    const pr = project(r, est);
+    if (pr.d > 45 + est.unc){
+      if (!offRouteSince) offRouteSince = Date.now();
+      if (Date.now() - offRouteSince > 7000 && Date.now() - lastReroute > 20000){ lastReroute = Date.now(); offRouteSince = 0; buildRoutes(est, true).then(() => { if (routes[sel]) along = project(routes[sel], est).along; }); }
+    } else offRouteSince = 0;
+  }
+  updateGmaps();
+}
+function say(t){
+  if (!voice.checked || !("speechSynthesis" in window) || !t) return;
+  try{ const u = new SpeechSynthesisUtterance(t); u.lang = "ru-RU"; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
+}
+
+/* «Стою. Объезд»: помечаем пробкой ближайшие 150–700 м своей дороги и ищем путь в обход */
+function stuck(){
+  const r = routes[sel]; if (!r || !est) return;
+  const a = navigating ? along : project(r, est).along;
+  for (let d = 180; d <= 700; d += 130){
+    if (a + d >= r.len - 80) break;
+    const p = pointAt(r, a + d); addJam(p, 55, true);
+  }
+  saveJams(); drawJams();
+  toast("Отметил пробку впереди, ищу объезд");
+  buildRoutes(est).then(() => { if (navigating && routes[sel]){ along = project(routes[sel], est).along; spokenFor = -1; } });
+}
+
+/* ============ отметки пробок ============ */
+function addJam(p, r, silent){ jams.push({lat: p.lat, lon: p.lon, r: r || 70, t: Date.now()}); if (!silent){ saveJams(); drawJams(); } }
+function saveJams(){ store.set("jams", jams); document.getElementById("jamCount").textContent = jams.length; }
+function drawJams(){
+  jamLayer.clearLayers();
+  jams.forEach((j, i) => {
+    L.circle([j.lat, j.lon], {radius: j.r || 70, color: "#ff5d5d", weight: 2, fillOpacity: .2, bubblingMouseEvents: false})
+      .bindPopup(() => popupEl([["Убрать отметку", () => { jams.splice(i, 1); saveJams(); drawJams(); map.closePopup(); buildRoutes(); }]]))
+      .addTo(jamLayer);
+  });
+  document.getElementById("jamCount").textContent = jams.length;
+}
+
+/* ============ нажатие на карту ============ */
+function popupEl(items){
+  const d = document.createElement("div");
+  items.forEach(([t, fn]) => { const b = document.createElement("button"); b.type = "button"; b.textContent = t; b.onclick = fn; d.appendChild(b); });
+  return d;
+}
+map.on("click", e => {
+  const p = {lat: e.latlng.lat, lon: e.latlng.lng};
+  L.popup().setLatLng(e.latlng).setContent(popupEl([
+    ["Сюда", () => { map.closePopup(); setDest(p, "Точка на карте"); }],
+    ["Пробка тут", () => { map.closePopup(); addJam(p); toast("Отметка на 3 часа"); if (dest) buildRoutes(); }],
+    ["Я здесь", () => { map.closePopup(); manualFix(p); }]
+  ])).openOn(map);
+});
+map.on("dragstart", () => { follow = false; });
+function manualFix(p){
+  est = {lat: p.lat, lon: p.lon, unc: 25, t: Date.now()};
+  if (mode === "none") setMode("dr");
+  if (navigating && routes[sel]) along = project(routes[sel], est).along;
+  suspect.chain = []; render(); toast("Позиция поправлена вручную");
+}
+function setDest(p, name){
+  dest = {lat: p.lat, lon: p.lon, name};
+  store.set("dest", dest);
+  if (destMarker) destMarker.remove();
+  destMarker = L.marker([p.lat, p.lon], {title: name}).addTo(map);
+  buildRoutes();
+}
+
+/* ============ поиск адреса ============ */
+const searchForm = document.getElementById("searchForm"), resultsBox = document.getElementById("results");
+searchForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const q = document.getElementById("q").value.trim(); if (!q) return;
+  const c = est || {lat: KYIV[0], lon: KYIV[1]};
+  const vb = [c.lon-0.6, c.lat+0.4, c.lon+0.6, c.lat-0.4].join(",");
+  resultsBox.hidden = false; resultsBox.innerHTML = '<button type="button" disabled>Ищу…</button>';
+  try{
+    const res = await fetch(`${NOMINATIM}?format=jsonv2&limit=6&countrycodes=ua&accept-language=ru&viewbox=${vb}&q=${encodeURIComponent(q)}`);
+    const list = await res.json();
+    resultsBox.innerHTML = "";
+    if (!list.length){ resultsBox.innerHTML = '<button type="button" disabled>Ничего не нашлось. Попробуйте улицу и номер дома.</button>'; return; }
+    list.forEach(it => {
+      const b = document.createElement("button"); b.type = "button";
+      const parts = it.display_name.split(", ");
+      b.innerHTML = `${esc(parts.slice(0, 2).join(", "))}<small>${esc(parts.slice(2, 5).join(", "))}</small>`;
+      b.onclick = () => { resultsBox.hidden = true; document.getElementById("q").blur(); setDest({lat: +it.lat, lon: +it.lon}, parts[0]); };
+      resultsBox.appendChild(b);
+    });
+  }catch(err){ resultsBox.innerHTML = '<button type="button" disabled>Поиск не отвечает. Проверьте интернет.</button>'; }
+});
+function esc(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ============ интерфейс ============ */
+let toastT;
+function toast(t){
+  let el = document.querySelector(".toast");
+  if (!el){ el = document.createElement("div"); el.className = "toast"; document.body.appendChild(el); }
+  el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 3500);
+}
+const detour = document.getElementById("detour"), illegal = document.getElementById("illegal"), voice = document.getElementById("voice");
+const goBtn = document.getElementById("goBtn"), stuckBtn = document.getElementById("stuckBtn"), sensorsBtn = document.getElementById("sensorsBtn");
+const st = store.get("settings", {level: 2, illegal: false, voice: true});
+detour.value = st.level; illegal.checked = st.illegal; voice.checked = st.voice;
+function saveSettings(){ store.set("settings", {level: +detour.value, illegal: illegal.checked, voice: voice.checked}); document.getElementById("detourHint").textContent = LEVELS[+detour.value].hint; }
+saveSettings();
+detour.addEventListener("change", () => { saveSettings(); if (dest) buildRoutes(); });
+illegal.addEventListener("change", () => { saveSettings(); if (dest) buildRoutes(); });
+voice.addEventListener("change", saveSettings);
+goBtn.onclick = () => navigating ? stopNav() : startNav();
+stuckBtn.onclick = stuck;
+sensorsBtn.onclick = enableSensors;
+document.getElementById("centerBtn").onclick = () => { follow = true; if (est) map.setView([est.lat, est.lon], Math.max(map.getZoom(), 16)); else toast("Положение ещё не найдено. Нажмите на карте «Я здесь»."); };
+document.getElementById("handle").onclick = () => document.getElementById("sheet").classList.toggle("min");
+document.getElementById("clearJams").onclick = () => { jams = []; saveJams(); drawJams(); if (dest) buildRoutes(); };
+if (typeof DeviceMotionEvent === "undefined" || !DeviceMotionEvent.requestPermission){
+  // Android и компьютеры: разрешение не нужно
+  if (typeof DeviceMotionEvent !== "undefined"){ window.addEventListener("devicemotion", onMotion); window.addEventListener("deviceorientationabsolute", onOrient); window.addEventListener("deviceorientation", onOrient); motion.on = true; sensorsBtn.hidden = true; }
+}
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && navigating && !wakeLock){ try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){} }
+});
+
+/* ============ старт ============ */
+drawJams();
+if (dest){ destMarker = L.marker([dest.lat, dest.lon]).addTo(map); }
+if ("geolocation" in navigator){
+  navigator.geolocation.watchPosition(p => {
+    const first = !est; onFix(p);
+    if (first && est){ map.setView([est.lat, est.lon], 15); if (dest) buildRoutes(); }
+  }, onFixError, {enableHighAccuracy: true, maximumAge: 0, timeout: 20000});
+} else toast("Браузер не даёт доступ к геопозиции");
+setInterval(tick, 500);
+</script>
+</body>
+</html>
