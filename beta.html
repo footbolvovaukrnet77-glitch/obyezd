@@ -230,6 +230,7 @@ body.dark #illegal:checked{background:var(--red)}
 body.dark .vi .ic.w,body.dark .vpin.w{background:#f9ab00}
 body.dark .navthen{background:#0a5124}
 body.dark .panel{background:rgba(0,0,0,.55)}
+body.dark #map{background:#1b1b1b}
 .seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:3px}
 .seg button{flex:1;border:0;background:none;border-radius:9px;padding:9px 6px;font-weight:500;font-size:14px;color:var(--sub)}
 .seg button[aria-pressed="true"]{background:var(--bg);color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.25)}
@@ -1175,7 +1176,7 @@ async function valhalla(locs, extra, legal, lvl, extraCost){
 /* второй движок маршрутов: OSRM (бесплатный публичный сервер) — запасной путь и другие варианты */
 const OSRM_DIR = {uturn: "Развернитесь", "sharp right": "Резко направо", right: "Поверните направо", "slight right": "Держитесь правее", straight: "Прямо", "slight left": "Держитесь левее", left: "Поверните налево", "sharp left": "Резко налево"};
 const OSRM_TYPE = {uturn: 12, "sharp right": 11, right: 10, "slight right": 9, straight: 8, "slight left": 16, left: 15, "sharp left": 14};
-async function osrmRoutes(start, end, vias){
+async function osrmRoutes(start, end, vias, isStops){
   if (!rp.eng.osrm) throw new Error("OSRM выключен");
   const pts = [start, ...(vias || []), end].map(p => p.lon.toFixed(6) + "," + p.lat.toFixed(6)).join(";");
   const u = `https://router.project-osrm.org/route/v1/driving/${pts}?alternatives=${vias && vias.length ? "false" : "3"}&steps=true&geometries=polyline6&overview=full&continue_straight=true`;
@@ -1187,7 +1188,11 @@ async function osrmRoutes(start, end, vias){
     let at = 0; const mans = [];
     rt.legs.forEach((leg, li) => leg.steps.forEach(st => {
       const m = st.maneuver || {}, name = st.name || "", mod = m.modifier || "straight";
-      if ((m.type === "arrive" && li < rt.legs.length-1) || (m.type === "depart" && li > 0)) return;   // промежуточная точка — не манёвр
+      if (m.type === "arrive" && li < rt.legs.length-1){
+        if (isStops){ const a = project(route, {lat: m.location[1], lon: m.location[0]}).along; mans.push({at: Math.max(at, a), text: "Остановка по пути", verbal: "Остановка по пути", type: 8, street: "", stop: true}); at = Math.max(at, a); }
+        return;
+      }
+      if (m.type === "depart" && li > 0) return;   // промежуточная точка — не манёвр
       let type = OSRM_TYPE[mod] || 8, text;
       if (m.type === "depart"){ type = 1; text = name ? `Начните движение по ${name}` : "Начните движение"; }
       else if (m.type === "arrive"){ type = 4; text = "Вы на месте"; }
@@ -1294,7 +1299,7 @@ async function buildRoutes(fromPoint, quiet){
   if (S.length){
     // остановки по пути: каждый движок строит через них в заданном порядке
     const SV = S.map(p => ({lat: p.lat, lon: p.lon, type: "break"}));
-    tasks = [T("main", () => valhalla([A, ...SV, B], {})), T("osrm", () => osrmRoutes(start, end, S))];
+    tasks = [T("main", () => valhalla([A, ...SV, B], {})), T("osrm", () => osrmRoutes(start, end, S, true))];
     if (cfg.level > 0) tasks.push(T("detour", () => valhalla([A, ...SV, B], {}, false, 0)));
     if (avoid.length) tasks.push(T("detour", () => valhalla([A, ...SV, B], {exclude_locations: avoid})));
     if (cfg.ttKey && rp.eng.tomtom) tasks.push(T("tomtom", () => ttRoutes(start, end, S)));
@@ -2893,7 +2898,7 @@ function drawEw(){
   if (!cfg.layers.ew) return;
   Object.entries(ew).forEach(([k, v]) => {
     const [a, b] = k.split(",").map(Number), la = a/200, lo = b/200;
-    L.rectangle([[la - .0025, lo - .0025], [la + .0025, lo + .0025]], {color: v.s ? "#d93025" : "#f29900", weight: 1, fillOpacity: Math.min(.45, .1 + v.n*.05), interactive: false}).addTo(ewLayer);
+    L.rectangle([[la - .0025, lo - .0025], [la + .0025, lo + .0025]], {color: v.s ? "#d93025" : "#f29900", weight: 1, fillOpacity: Math.min(.22, .06 + v.n*.03), opacity: .5, interactive: false}).addTo(ewLayer);
   });
 }
 

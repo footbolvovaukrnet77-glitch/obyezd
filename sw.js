@@ -1,5 +1,5 @@
 /* Объезд: работа без связи. Приложение и просмотренная карта хранятся в телефоне. */
-const V = "obz-app-v6", TILES = "obz-tiles";
+const V = "obz-app-v7", TILES = "obz-tiles";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js", "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"];
 self.addEventListener("install", e => {
