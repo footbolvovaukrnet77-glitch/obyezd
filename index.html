@@ -157,11 +157,9 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 .pin{font-size:20px;line-height:28px;width:30px;height:30px;text-align:center;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 .vpin{width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;font-weight:700;font-size:14px;line-height:24px;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .vpin.w{background:#f9ab00}
-.me{width:22px;height:22px;position:relative}
-.me i{position:absolute;inset:3px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
-.me b{position:absolute;left:50%;top:50%;width:0;height:0;margin:-34px 0 0 -14px;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:34px solid rgba(26,115,232,.3);transform-origin:50% 100%}
-.me.dr i{background:var(--orange)}
-.me.spoof i{background:var(--red)}
+.car{width:34px;height:54px;transition:transform .45s ease-out;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+.car .body{fill:#1a73e8}.car.dr .body{fill:#f29900}.car.spoof .body{fill:#d93025}
+.car .roof{fill:#4f95f0}.car.dr .roof{fill:#fbbc04}.car.spoof .roof{fill:#ea6b60}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sheetH,200px) + 20px);z-index:4000;background:#323232;color:#fff;padding:12px 18px;border-radius:8px;font-size:14px;max-width:88vw;text-align:center;box-shadow:var(--sh)}
 .speedo{position:fixed;left:max(12px,env(safe-area-inset-left,0px));bottom:calc(var(--sheetH,200px) + 14px);z-index:999;display:flex;gap:8px;align-items:center;transition:bottom .2s}
 .spd{width:58px;height:58px;border-radius:50%;background:#fff;box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:500;font-size:21px;line-height:1;font-variant-numeric:tabular-nums}
@@ -477,7 +475,13 @@ function setTraffic(){
 }
 
 const meAcc = L.circle(KYIV, {radius: 0, color: "#1a73e8", weight: 1, fillOpacity: .1, interactive: false});
-const meIcon = cls => L.divIcon({className: "", html: `<div class="me ${cls}"><b></b><i></i></div>`, iconSize: [22, 22], iconAnchor: [11, 11]});
+const CAR_SVG = `<svg viewBox="0 0 34 54" width="34" height="54"><rect class="body" x="4" y="3" width="26" height="48" rx="10" stroke="#fff" stroke-width="2.5"/>
+<rect x="1.5" y="15" width="4" height="7" rx="2" fill="#174ea6"/><rect x="28.5" y="15" width="4" height="7" rx="2" fill="#174ea6"/>
+<path d="M8.5 15.5 Q17 11.5 25.5 15.5 L24 23 Q17 21.5 10 23 Z" fill="#cfe2ff"/><rect class="roof" x="9.5" y="23.5" width="15" height="14" rx="3"/>
+<path d="M10 38.5 Q17 40 24 38.5 L25 44 Q17 46.5 9 44 Z" fill="#cfe2ff"/>
+<rect x="7" y="4.5" width="5" height="3" rx="1.5" fill="#fff6c2"/><rect x="22" y="4.5" width="5" height="3" rx="1.5" fill="#fff6c2"/>
+<rect x="7" y="47" width="5" height="2.5" rx="1.2" fill="#ff6b5e"/><rect x="22" y="47" width="5" height="2.5" rx="1.2" fill="#ff6b5e"/></svg>`;
+const meIcon = cls => L.divIcon({className: "", html: `<div class="car ${cls}">${CAR_SVG}</div>`, iconSize: [34, 54], iconAnchor: [17, 27]});
 const meDot = L.marker(KYIV, {icon: meIcon(""), interactive: false, zIndexOffset: 1000, keyboard: false});
 const rawDot = L.circleMarker(KYIV, {radius: 6, color: "#d93025", weight: 2, fillOpacity: 0, dashArray: "2 3", interactive: false});
 let destMarker = null;
@@ -651,7 +655,7 @@ function updateMode(){
   else if (gpsFresh) m = "gps";
   else if (now - lastGoodT < 15000) m = "net";
   else m = "dr";
-  if (m !== mode){ mode = m; posChip.dataset.s = m; meDot.setIcon(meIcon(m === "dr" ? "dr" : m === "spoof" ? "spoof" : "")); }
+  if (m !== mode){ mode = m; posChip.dataset.s = m; meDot.setIcon(meIcon(m === "dr" ? "dr" : m === "spoof" ? "spoof" : "")); const c = meDot.getElement && meDot.getElement() && meDot.getElement().querySelector(".car"); if (c){ c.style.transition = "none"; c.style.transform = `rotate(${carRot}deg)`; requestAnimationFrame(() => c.style.transition = ""); } }
 }
 
 /* IP: самый грубый источник, на случай когда нет ни спутников, ни сети */
@@ -737,14 +741,27 @@ function nextTurn(r, a){
   return null;
 }
 
-/* ============ отображение позиции ============ */
+/* ============ отображение позиции: машинка плавно едет и поворачивает ============ */
+let carShown = null, carTarget = null, carRot = 0, carLastF = 0;
+function carFrame(t){
+  if (carShown && carTarget){
+    const dt = carLastF ? Math.min(0.2, (t - carLastF)/1000) : 0.016;
+    const k = 1 - Math.exp(-dt/0.22);
+    carShown.lat += (carTarget.lat - carShown.lat)*k; carShown.lon += (carTarget.lon - carShown.lon)*k;
+    meDot.setLatLng(ll(carShown)); meAcc.setLatLng(ll(carShown));
+  }
+  carLastF = t; requestAnimationFrame(carFrame);
+}
 function render(){
   if (!est) return;
-  meDot.setLatLng(ll(est)); meAcc.setLatLng(ll(est)).setRadius(est.unc);
-  if (!map.hasLayer(meDot)){ meAcc.addTo(map); meDot.addTo(map); }
-  const cone = meDot.getElement && meDot.getElement() && meDot.getElement().querySelector("b");
+  carTarget = {lat: est.lat, lon: est.lon};
+  if (!carShown || dist(carShown, carTarget) > 400) carShown = Object.assign({}, carTarget);
+  meAcc.setRadius(est.unc);
+  if (!map.hasLayer(meDot)){ meDot.setLatLng(ll(carShown)); meAcc.setLatLng(ll(carShown)).addTo(map); meDot.addTo(map); requestAnimationFrame(carFrame); }
   const h = est.hdg != null ? est.hdg : heading();
-  if (cone){ cone.style.display = h == null ? "none" : ""; if (h != null) cone.style.transform = `rotate(${h}deg)`; }
+  if (h != null){ carRot += angDiff(((carRot % 360) + 360) % 360, h); }   // поворачиваем коротким путём, без оборота через 360°
+  const car = meDot.getElement && meDot.getElement() && meDot.getElement().querySelector(".car");
+  if (car) car.style.transform = `rotate(${carRot}deg)`;
   const u = Math.round(est.unc);
   const t = {gps: `GPS · ±${u} м`, net: `Сеть: Wi-Fi/вышки · ±${u} м`, dr: `Без спутников · датчики · ±${u} м`,
     spoof: `Подмена GPS · считаю сам · ±${u} м`, none: "Ищу положение…"}[mode];
