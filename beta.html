@@ -1317,6 +1317,7 @@ async function restrictionsIn(b){
   return byFrom;
 }
 async function traceEdges(r){
+  if (valhallaDown()) return null;
   const attrs = ["edge.way_id", "edge.use", "edge.road_class", "edge.destination_only", "edge.names", "edge.begin_shape_index", "edge.end_shape_index", "edge.speed_limit", "edge.density", "edge.surface", "shape"];
   const base = {costing: "auto", costing_options: {auto: costing()}, filters: {attributes: attrs, action: "include"}};
   const tries = [];

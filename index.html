@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Объезд">
 <meta name="theme-color" content="#ffffff">
 <title>Объезд</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -160,6 +163,16 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 .me.dr i{background:var(--orange)}
 .me.spoof i{background:var(--red)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sheetH,200px) + 20px);z-index:4000;background:#323232;color:#fff;padding:12px 18px;border-radius:8px;font-size:14px;max-width:88vw;text-align:center;box-shadow:var(--sh)}
+.speedo{position:fixed;left:max(12px,env(safe-area-inset-left,0px));bottom:calc(var(--sheetH,200px) + 14px);z-index:999;display:flex;gap:8px;align-items:center;transition:bottom .2s}
+.spd{width:58px;height:58px;border-radius:50%;background:#fff;box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:500;font-size:21px;line-height:1;font-variant-numeric:tabular-nums}
+.spd small{font-size:10px;color:var(--sub);font-weight:400;margin-top:2px}
+.spd.over{background:var(--red);color:#fff}.spd.over small{color:#fff}
+.lim{width:46px;height:46px;border-radius:50%;background:#fff;border:5px solid #d93025;display:grid;place-items:center;font-weight:700;font-size:16px;box-shadow:var(--sh);font-variant-numeric:tabular-nums}
+.chip.cur{background:#fef7e0;color:#b06000}.chip.cur.bad{background:var(--redbg);color:var(--red)}
+.results .sub{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--soft);overflow-x:auto}
+.results .sub button{width:auto;border:1px solid var(--line);border-radius:16px;padding:6px 12px;flex:none;font-weight:500;font-size:13px}
+.sel,.tin{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;background:#fff}
+.prog{height:4px;background:var(--soft);border-radius:2px;overflow:hidden;margin-top:6px}.prog i{display:block;height:100%;width:0;background:var(--blue)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -188,8 +201,13 @@ input[type=range]{width:100%;accent-color:var(--blue)}
     <span class="chip" id="posChip" data-s="none"><span class="dot"></span><span id="posText">Ищу положение…</span></span>
     <button class="chip" id="sensorsBtn" type="button">Включить датчики</button>
     <button class="chip" id="trafficChip" type="button">Пробки: <span id="trafficSrc">свои</span></button>
+    <span class="chip cur" id="curfewChip" hidden></span>
+    <span class="chip" id="obdChip" hidden>OBD: <span id="obdTxt">—</span></span>
+    <span class="chip" id="offChip" hidden>Нет связи · работаю офлайн</span>
   </div>
 </div>
+
+<div class="speedo" id="speedo" hidden><div class="spd" id="spd">0<small>км/ч</small></div><div class="lim" id="lim" hidden>50</div></div>
 
 <div class="fabs" id="fabs">
   <button class="fab" id="layersBtn" type="button" aria-label="Слои"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 16.5 4.6 10.8 3 12l9 7 9-7-1.6-1.2zM12 14l9-7-9-7-9 7z" transform="translate(0 2)"/></svg></button>
@@ -249,7 +267,8 @@ input[type=range]{width:100%;accent-color:var(--blue)}
       <label for="lyIncidents"><span class="lbl"><span>ДТП, ремонты, перекрытия</span><small>Из TomTom и HERE, если указан ключ</small></span><input type="checkbox" class="sw" id="lyIncidents"></label>
       <label for="lyCameras"><span class="lbl"><span>Камеры</span><small id="camHint">Камеры скорости и светофоров из OpenStreetMap</small></span><input type="checkbox" class="sw" id="lyCameras"></label>
       <label for="lyReports"><span class="lbl"><span>Отметки водителей</span><small>Полиция, ДТП, ямы, пробки, которые вы отметили</small></span><input type="checkbox" class="sw" id="lyReports"></label>
-      <label for="lyNight"><span class="lbl"><span>Ночная карта</span><small>Тёмная карта, меньше слепит в машине</small></span><input type="checkbox" class="sw" id="lyNight"></label>
+      <label for="lyNightAuto"><span class="lbl"><span>Ночная карта автоматически</span><small>Темнеет после заката, светлеет на рассвете</small></span><input type="checkbox" class="sw" id="lyNightAuto"></label>
+      <label for="lyNight"><span class="lbl"><span>Ночная карта сейчас</span><small>Тёмная карта, меньше слепит в машине</small></span><input type="checkbox" class="sw" id="lyNight"></label>
     </div>
   </div>
 </div>
@@ -282,8 +301,8 @@ input[type=range]{width:100%;accent-color:var(--blue)}
         </div>
         <div>
           <div class="lbl"><span>Насколько окольно</span><small id="detourHint"></small></div>
-          <input type="range" id="detour" min="0" max="3" step="1">
-          <div class="levels"><span>Обычно</span><span>Срезать</span><span>Кварталы</span><span>Дворы</span></div>
+          <input type="range" id="detour" min="0" max="4" step="1">
+          <div class="levels"><span>Обычно</span><span>Срезать</span><span>Кварталы</span><span>Дворы</span><span>Грунтовки</span></div>
         </div>
         <label for="illegal"><span class="lbl"><span>Разрешить запрещённые повороты</span><small>Маршрут может нарушать знаки поворотов. Все нарушения будут списком и на карте. Встречку по односторонней не строит никогда.</small></span><input type="checkbox" class="sw" id="illegal"></label>
         <label for="voice"><span class="lbl"><span>Голосовые подсказки</span><small>Повороты, камеры, нарушения впереди</small></span><input type="checkbox" class="sw" id="voice"></label>
@@ -299,6 +318,36 @@ input[type=range]{width:100%;accent-color:var(--blue)}
           <div class="key" style="margin-top:6px"><input id="hereKey" placeholder="Вставьте ключ" autocapitalize="off" autocomplete="off" spellcheck="false"><button class="btn" type="button" id="hereTest" style="flex:none">Проверить</button></div></div>
         <div class="row" style="margin-top:0"><button class="btn" type="button" id="clearJams">Убрать мои отметки пробок (<span id="jamCount">0</span>)</button><button class="btn" type="button" id="clearHist">Забыть историю поездок</button></div>
       </div>
+    </div>
+
+    <div class="sec"><h3>Общие отметки с друзьями</h3>
+      <p class="note" style="margin-top:0">Отметки полиции, пробок, ДТП и камер видят все, у кого есть ссылка группы. Бесплатно и без регистрации, через сервис ntfy.sh. Отметки живут 12 часов.</p>
+      <div class="srcs" id="groupInfo"></div>
+      <div class="row"><button class="btn" type="button" id="groupNew">Создать группу</button><button class="btn" type="button" id="groupShare">Пригласить</button><button class="btn" type="button" id="groupLeave">Выйти</button></div>
+    </div>
+
+    <div class="sec"><h3>Комендантский час</h3>
+      <div class="set">
+        <label for="curOn"><span class="lbl"><span>Следить за временем</span><small>Предупредит, если не успеваете доехать до начала</small></span><input type="checkbox" class="sw" id="curOn"></label>
+        <div style="display:flex;gap:10px;align-items:center">с <input class="tin" type="time" id="curFrom"> до <input class="tin" type="time" id="curTo"></div>
+      </div>
+    </div>
+
+    <div class="sec"><h3>OBD-адаптер (скорость с колёс)</h3>
+      <p class="note" style="margin-top:0" id="obdNote">Самый точный способ держать позицию при РЭБ. Нужен Bluetooth LE адаптер ELM327 (например, Vgate iCar Pro BLE) и бесплатный браузер <b>Bluefy</b> из App Store: Safari не умеет Bluetooth. Откройте навигатор в Bluefy и нажмите «Подключить».</p>
+      <div class="row"><button class="btn" type="button" id="obdBtn">Подключить OBD</button></div>
+    </div>
+
+    <div class="sec"><h3>Офлайн</h3>
+      <p class="note" style="margin-top:0">Приложение и просмотренные участки карты сохраняются в телефоне. Последние маршруты работают без связи. С ключом TomTom можно заранее скачать карту района.</p>
+      <div class="row"><button class="btn" type="button" id="dlArea">Скачать карту вокруг (5 км)</button><button class="btn" type="button" id="dlRoute">Скачать карту маршрута</button></div>
+      <div class="prog" id="dlProg" hidden><i></i></div>
+      <p class="note" id="cacheInfo"></p>
+    </div>
+
+    <div class="sec"><h3>Журнал поездки</h3>
+      <p class="note" style="margin-top:0">Записывает спутники, сеть, датчики, OBD и расчётную позицию. Пришлите файл после поездки, и защиту от РЭБ можно будет точно подстроить под вашу машину и район.</p>
+      <div class="row"><button class="btn" type="button" id="logSave">Сохранить журнал (<span id="logN">0</span>)</button><button class="btn" type="button" id="logClear">Очистить</button></div>
     </div>
 
     <div class="sec"><h3>Отслеживание положения</h3>
@@ -452,7 +501,7 @@ let routes = [], sel = 0, navigating = false, along = 0;
 let spokenFor = -1, offRouteSince = 0, lastReroute = 0, warned = new Set();
 const suspect = {since: 0, chain: [], staticSince: 0, lastPos: null};
 const srcs = {gps: {t: 0, acc: 0, n: 0}, net: {t: 0, acc: 0, n: 0}, ip: {t: 0, acc: 0, n: 0, err: ""}, snap: {t: 0, n: 0}, rejected: 0};
-let lastGoodT = 0;
+let lastGoodT = 0, lastRaw = null;
 
 /* ============ датчики движения ============ */
 const motion = {on: false, buf: [], moving: true, still: 0.05, rot: [], heading: null, hdgOffset: null, hdgHist: [], compass: null, lastT: 0};
@@ -535,6 +584,7 @@ function onFixRaw(pos, stream){
 }
 function measure(f, kind){
   const s = srcs[kind]; s.t = f.t; s.acc = f.acc; s.n++;
+  if (kind !== "ip") lastRaw = f;
   if (kind === "gps"){ rawDot.setLatLng(ll(f)); if (!map.hasLayer(rawDot)) rawDot.addTo(map); }
   if (!est){ est = {lat: f.lat, lon: f.lon, unc: f.acc, t: f.t}; lastGoodT = f.t; firstFix(); render(); return; }
   if (kind === "ip"){
@@ -648,7 +698,8 @@ function tick(){
       if (ramp < 1) v = cruise*ramp;
     }
   } else v = speedEst;
-  speedEst = speedEst*0.98 + v*0.02;
+  if (obdFresh()){ v = obd.v; speedEst = obd.v; if (obd.v > 0.3) moveStart = moveStart || nowP; }   // скорость с колёс точнее всего
+  else speedEst = speedEst*0.98 + v*0.02;
 
   const step = v*dt;
   if (navigating && routes[sel]){
@@ -876,14 +927,30 @@ async function ttEvaluate(r){
   trafficStat.tt = "ok"; trafficStat.ttT = Date.now();
 }
 /* TomTom сам предлагает до 4 вариантов с учётом пробок; берём из них опорные точки для наших маршрутов */
-async function ttAlternatives(start, end){
-  const u = `https://api.tomtom.com/routing/1/calculateRoute/${start.lat.toFixed(6)},${start.lon.toFixed(6)}:${end.lat.toFixed(6)},${end.lon.toFixed(6)}/json?key=${encodeURIComponent(cfg.ttKey)}&traffic=true&maxAlternatives=4&alternativeType=anyRoute&routeType=fastest&travelMode=car`;
-  const r = await fetchT(u, {}, 15000); if (!r.ok) return [];
-  const j = await r.json();
+/* TomTom: свои варианты с учётом пробок и русскими подсказками — третий движок маршрутов */
+const TT_TYPE = {TURN_RIGHT: 10, TURN_LEFT: 15, SHARP_RIGHT: 11, SHARP_LEFT: 14, BEAR_RIGHT: 9, BEAR_LEFT: 16, KEEP_RIGHT: 23, KEEP_LEFT: 24,
+  MAKE_UTURN: 12, TRY_MAKE_UTURN: 12, STRAIGHT: 8, FOLLOW: 8, DEPART: 1, ARRIVE: 4, ARRIVE_LEFT: 4, ARRIVE_RIGHT: 4,
+  ROUNDABOUT_CROSS: 26, ROUNDABOUT_RIGHT: 26, ROUNDABOUT_LEFT: 26, ROUNDABOUT_BACK: 26, TAKE_EXIT: 20, MOTORWAY_EXIT_RIGHT: 20, MOTORWAY_EXIT_LEFT: 21,
+  ENTER_MOTORWAY: 17, ENTER_FREEWAY: 17, ENTER_HIGHWAY: 17, SWITCH_PARALLEL_ROAD: 22, SWITCH_MAIN_ROAD: 22, ENTRANCE_RAMP: 17};
+async function ttRoutes(start, end){
+  const u = `https://api.tomtom.com/routing/1/calculateRoute/${start.lat.toFixed(6)},${start.lon.toFixed(6)}:${end.lat.toFixed(6)},${end.lon.toFixed(6)}/json?key=${encodeURIComponent(cfg.ttKey)}&traffic=true&maxAlternatives=4&alternativeType=anyRoute&routeType=fastest&travelMode=car&instructionsType=text&language=ru-RU&sectionType=traffic&computeTravelTimeFor=all`;
+  const r = await fetchT(u, {}, 15000); if (!r.ok){ trafficStat.tt = "TomTom " + r.status; return []; }
+  const j = await r.json(); trafficStat.tt = "ok"; trafficStat.ttT = Date.now();
   return (j.routes || []).map(rt => {
-    const P = rt.legs.flatMap(l => l.points).map(p => ({lat: p.latitude, lon: p.longitude}));
-    const tmp = {coords: P, cum: cumOf(P)}; tmp.len = tmp.cum[tmp.cum.length-1];
-    return [.25, .5, .75].map(f => pointAt(tmp, tmp.len*f));
+    const coords = rt.legs.flatMap(l => l.points).map(p => ({lat: p.latitude, lon: p.longitude})), cum = cumOf(coords);
+    const s = rt.summary;
+    const route = {coords, cum, len: cum[cum.length-1], time: s.noTrafficTravelTimeInSeconds || s.travelTimeInSeconds, enc: null, illegal: false, engine: "TomTom",
+      tt: {time: s.travelTimeInSeconds, delay: s.trafficDelayInSeconds || 0, free: s.noTrafficTravelTimeInSeconds || s.travelTimeInSeconds, len: s.lengthInMeters}};
+    route.ttSections = (rt.sections || []).filter(x => x.sectionType === "TRAFFIC").map(x => ({pts: coords.slice(x.startPointIndex, x.endPointIndex+1),
+      color: x.simpleCategory === "ROAD_CLOSURE" ? "#202124" : (x.magnitudeOfDelay >= 3 || x.simpleCategory === "JAM") ? "#c5221f" : "#f29900", delay: x.delayInSeconds || 0}));
+    const ins = (rt.guidance && rt.guidance.instructions) || [];
+    route.maneuvers = ins.map(i => {
+      const at = i.point ? project(route, {lat: i.point.latitude, lon: i.point.longitude}).along : (i.routeOffsetInMeters || 0);
+      const text = i.message || i.combinedMessage || "";
+      return {at, text, verbal: text, type: TT_TYPE[i.maneuver] || 8, street: i.street || "", turn: at > 0 && at < route.len ? angDiff(bearingAt(route, at - 30, 25), bearingAt(route, at + 5, 25)) : null};
+    });
+    route.uturn = route.maneuvers.some((m, k) => m.type === 12 && k > 0 && k < route.maneuvers.length-1);
+    return route;
   });
 }
 
@@ -892,22 +959,70 @@ const LEVELS = [
   {hint: "Как обычный навигатор", o: {}},
   {hint: "Срезает по второстепенным улицам", o: {use_highways: 0.4, use_living_streets: 0.5, service_penalty: 6, service_factor: 1.0}},
   {hint: "Внутриквартальные проезды", o: {use_highways: 0.2, use_living_streets: 0.8, service_penalty: 0, service_factor: 0.9, destination_only_penalty: 60}},
-  {hint: "Через дворы, если там быстрее", o: {use_highways: 0, use_living_streets: 1, service_penalty: 0, service_factor: 0.7, destination_only_penalty: 0, maneuver_penalty: 2, use_tracks: 0.2}}
+  {hint: "Через дворы, если там быстрее", o: {use_highways: 0, use_living_streets: 1, service_penalty: 0, service_factor: 0.7, destination_only_penalty: 0, maneuver_penalty: 2, use_tracks: 0.2}},
+  {hint: "Грунтовки, полевые дороги, лесополосы и дворы — где угодно, лишь бы ехать", o: {use_highways: 0, use_living_streets: 1, service_penalty: 0, service_factor: 0.5, destination_only_penalty: 0, maneuver_penalty: 1, use_tracks: 1, exclude_unpaved: false, country_crossing_penalty: 0}}
 ];
-function costing(legal){
-  const auto = Object.assign({gate_penalty: 600, private_access_penalty: 900}, LEVELS[cfg.level].o);
+function costing(legal, lvl){
+  const auto = Object.assign({gate_penalty: 600, private_access_penalty: 900}, LEVELS[lvl != null ? lvl : cfg.level].o);
   if (cfg.illegal && !legal) auto.ignore_restrictions = true;
   auto.ignore_oneways = false; // против движения — никогда
   return auto;
 }
-async function valhalla(locs, extra, legal){
-  const body = Object.assign({locations: locs, costing: "auto", costing_options: {auto: costing(legal)},
+const vState = {fails: 0, downUntil: 0};
+function valhallaDown(){ return Date.now() < vState.downUntil; }
+async function valhalla(locs, extra, legal, lvl, extraCost){
+  if (valhallaDown()) throw new Error("Valhalla недоступен");
+  const auto = Object.assign(costing(legal, lvl), extraCost || {});
+  const body = Object.assign({locations: locs, costing: "auto", costing_options: {auto},
     directions_options: {language: "ru-RU", units: "kilometers"}}, extra || {});
-  const r = await fetchT(VALHALLA + "/route?json=" + encodeURIComponent(JSON.stringify(body)), {}, 25000);
+  const url = VALHALLA + "/route?json=" + encodeURIComponent(JSON.stringify(body));
+  let r;
+  try{
+    r = await fetchT(url, {}, 14000);
+    if (r.status === 429){ await new Promise(x => setTimeout(x, 1500 + Math.random()*1500)); r = await fetchT(url, {}, 14000); }
+  }catch(e){
+    // сервер молчит: после двух неудач подряд две минуты его не трогаем и работаем через OSRM и TomTom
+    if (++vState.fails >= 2) vState.downUntil = Date.now() + 120000;
+    throw e;
+  }
+  if (r.status >= 500 || r.status === 429){ if (++vState.fails >= 2) vState.downUntil = Date.now() + 120000; throw new Error("Valhalla " + r.status); }
+  vState.fails = 0;
   const d = await r.json();
   if (!r.ok || !d.trip) throw new Error(d.error || "маршрут не найден");
   return [d.trip, ...(d.alternates || []).map(a => a.trip)];
 }
+/* второй движок маршрутов: OSRM (бесплатный публичный сервер) — запасной путь и другие варианты */
+const OSRM_DIR = {uturn: "Развернитесь", "sharp right": "Резко направо", right: "Поверните направо", "slight right": "Держитесь правее", straight: "Прямо", "slight left": "Держитесь левее", left: "Поверните налево", "sharp left": "Резко налево"};
+const OSRM_TYPE = {uturn: 12, "sharp right": 11, right: 10, "slight right": 9, straight: 8, "slight left": 16, left: 15, "sharp left": 14};
+async function osrmRoutes(start, end, vias){
+  const pts = [start, ...(vias || []), end].map(p => p.lon.toFixed(6) + "," + p.lat.toFixed(6)).join(";");
+  const u = `https://router.project-osrm.org/route/v1/driving/${pts}?alternatives=${vias && vias.length ? "false" : "3"}&steps=true&geometries=polyline6&overview=full&continue_straight=true`;
+  const r = await fetchT(u, {}, 20000); const j = await r.json();
+  if (j.code !== "Ok") throw new Error(j.message || "OSRM");
+  return j.routes.map(rt => {
+    const coords = decodePolyline(rt.geometry, 6), cum = cumOf(coords);
+    const route = {coords, cum, time: rt.duration, len: cum[cum.length-1], enc: null, illegal: false, engine: "OSRM"};
+    let at = 0; const mans = [];
+    rt.legs.forEach((leg, li) => leg.steps.forEach(st => {
+      const m = st.maneuver || {}, name = st.name || "", mod = m.modifier || "straight";
+      if ((m.type === "arrive" && li < rt.legs.length-1) || (m.type === "depart" && li > 0)) return;   // промежуточная точка — не манёвр
+      let type = OSRM_TYPE[mod] || 8, text;
+      if (m.type === "depart"){ type = 1; text = name ? `Начните движение по ${name}` : "Начните движение"; }
+      else if (m.type === "arrive"){ type = 4; text = "Вы на месте"; }
+      else if (m.type === "roundabout" || m.type === "rotary"){ type = 26; text = `На круговом движении ${m.exit ? m.exit + "-й съезд" : "съезд"}${name ? " на " + name : ""}`; }
+      else if (m.type === "new name" || m.type === "continue"){ text = (mod === "straight" ? "Продолжайте прямо" : OSRM_DIR[mod]) + (name ? ` по ${name}` : ""); }
+      else if (m.type === "fork" || m.type === "merge" || m.type === "on ramp" || m.type === "off ramp"){ text = (mod.includes("left") ? "Держитесь левее" : mod.includes("right") ? "Держитесь правее" : "Прямо") + (name ? ` на ${name}` : ""); }
+      else text = (OSRM_DIR[mod] || "Прямо") + (name ? ` на ${name}` : "");
+      const a = project(route, {lat: m.location[1], lon: m.location[0]}).along;
+      mans.push({at: Math.max(at, a), text, verbal: text, type, street: name});
+      at = Math.max(at, a);
+    }));
+    route.uturn = mans.some((m, k) => (m.type === 12) && k > 0 && k < mans.length-1);
+    route.maneuvers = mans.map(m => Object.assign(m, {turn: m.at > 0 && m.at < route.len ? angDiff(bearingAt(route, m.at - 30, 25), bearingAt(route, m.at + 5, 25)) : null}));
+    return route;
+  });
+}
+
 function toRoute(trip){
   let coords = [], mans = [], enc = [];
   trip.legs.forEach(leg => {
@@ -949,65 +1064,132 @@ function scoreRoute(r){
   r.score = r.drive + r.stop*STOP_W[cfg.avoidStop];
 }
 
-let buildId = 0;
+let buildId = 0, building = false;
 async function buildRoutes(fromPoint, quiet){
   if (!dest) return false;
   const from = fromPoint || est;
   if (!from){ toast("Нужна точка старта: дождитесь GPS или нажмите на карте «Я здесь»."); return false; }
-  const my = ++buildId;
+  const my = ++buildId; building = true;
   const start = {lat: from.lat, lon: from.lon}, end = {lat: dest.lat, lon: dest.lon};
   const h = navigating ? (est && est.hdg != null ? est.hdg : heading()) : null;
   const A = Object.assign({lat: start.lat, lon: start.lon, type: "break"}, h != null ? {heading: Math.round(h), heading_tolerance: 60} : {});
   const B = {lat: end.lat, lon: end.lon, type: "break"};
   const D = dist(start, end);
-  if (!quiet) setRoutesText("Проверяю пробки и события…");
+  if (!quiet && !navigating) setRoutesText("Проверяю пробки и события…");
   await refreshIncidents(boundsOf([start, end], Math.min(8000, 1500 + D*0.4))).catch(() => {});
   const avoid = avoidPoints(start, end);
+  const ex = avoid.length ? {exclude_locations: avoid} : {};
 
-  const tasks = [() => valhalla([A, B], {alternates: 3})];
-  if (avoid.length) tasks.push(() => valhalla([A, B], {alternates: 2, exclude_locations: avoid}));
+  // промежуточные точки для объездов: сбоку от прямой линии, на разном удалении
+  const vias = [];
   if (D > 600){
     const offs = OFFS[cfg.maxExtra], brg = bearing(start, end);
-    const combos = [[.5, 0], [.33, 1], [.67, 1], [.5, 2], [.4, 3]];
-    for (const side of [-1, 1]) for (const [fr, oi] of combos){
-      if (offs[oi] == null) continue;
-      const off = Math.min(7000, Math.max(300, offs[oi]*D));
-      const v = move(move(start, brg, D*fr), brg + 90*side, off);
-      tasks.push(() => valhalla([A, {lat: v.lat, lon: v.lon, type: "through", radius: 200}, B], avoid.length ? {exclude_locations: avoid} : {}));
+    const combos = [[.5, 0], [.3, 1], [.7, 1], [.5, 2], [.4, 3], [.6, 3]];
+    for (const side of [-1, 1]){
+      for (const [fr, oi] of combos){
+        if (offs[oi] == null) continue;
+        const off = Math.min(8000, Math.max(300, offs[oi]*D));
+        vias.push([move(move(start, brg, D*fr), brg + 90*side, off)]);
+      }
+      if (offs[1] != null && D > 1500){
+        const off = Math.min(8000, Math.max(400, offs[1]*D));
+        vias.push([move(move(start, brg, D*.3), brg + 90*side, off), move(move(start, brg, D*.7), brg + 90*side, off)]);
+      }
     }
   }
-  if (cfg.ttKey) tasks.push(async () => {
-    const alts = await ttAlternatives(start, end);
-    const res = await pool(alts.map(p3 => () => valhalla([A, ...p3.map(p => ({lat: p.lat, lon: p.lon, type: "through", radius: 60})), B])), 2);
-    return res.filter(Boolean).flat();
-  });
-  let done = 0;
-  const res = await pool(tasks.map(t => async () => { const x = await t(); done++; if (!quiet && my === buildId) setRoutesText(`Перебираю объезды… ${done} из ${tasks.length}`); return x; }), 3);
-  if (my !== buildId) return false;
+  const T = (kind, fn) => ({kind, fn});
+  const tasks = [
+    T("main", () => valhalla([A, B], {alternates: 3})),
+    T("osrm", () => osrmRoutes(start, end))
+  ];
+  if (cfg.ttKey) tasks.push(T("tomtom", () => ttRoutes(start, end)));
+  if (cfg.level > 0) tasks.push(T("detour", () => valhalla([A, B], {alternates: 1}, false, 0)));               // обычный навигатор для сравнения
+  if (cfg.level >= 2) tasks.push(T("detour", () => valhalla([A, B], ex, false, null, {shortest: true})));      // самый короткий, любыми проездами
+  if (cfg.level < 4 && cfg.maxExtra >= 2) tasks.push(T("detour", () => valhalla([A, B], ex, false, 4)));       // бездорожье как запасной вариант
+  if (avoid.length) tasks.push(T("detour", () => valhalla([A, B], {alternates: 2, exclude_locations: avoid})));
+  vias.forEach(v => tasks.push(T("detour", () => valhallaDown()
+    ? osrmRoutes(start, end, v)                                                                                  // Valhalla лёг — объезды через OSRM
+    : valhalla([A, ...v.map(p => ({lat: p.lat, lon: p.lon, type: "through", radius: 250})), B], ex).catch(() => osrmRoutes(start, end, v)))));
 
-  let cands = [];
-  res.forEach((trips, ti) => (trips || []).forEach((t, j) => {
-    try{ const r = toRoute(t); r.kind = ti === 0 ? (j === 0 ? "main" : "alt") : "detour"; if (r.kind === "detour" && r.uturn) return; cands.push(r); }catch(e){}
-  }));
+  let cands = [], done = 0, shown = false, lastShow = 0;
+  const addRes = (task, res) => (res || []).forEach((t, j) => {
+    try{
+      const r = t.coords ? t : toRoute(t);
+      r.kind = task.kind === "main" ? (j === 0 ? "main" : "alt") : task.kind;
+      if (r.kind !== "main" && r.uturn) return;
+      cands.push(r);
+    }catch(e){}
+  });
+  const finalize = (list) => {
+    if (!list.some(r => r.kind === "main")){ const m = list.find(r => r.kind === "alt" || r.kind === "tomtom" || r.kind === "osrm") || list[0]; if (m) m.kind = "main"; }
+    const minLen = Math.min(...list.map(r => r.len));
+    let out = list.filter(r => r.kind === "main" || r.len <= minLen*MAXX[cfg.maxExtra] + 300);
+    out = dedupe(out).slice(0, 12);
+    out.forEach(scoreRoute); out.sort((a, b) => a.score - b.score);
+    return out;
+  };
+  // показываем первые варианты сразу, не дожидаясь всех
+  const interim = () => {
+    if (my !== buildId || navigating || !cands.length) return;
+    const now = Date.now(); if (shown && now - lastShow < 2500) return;
+    lastShow = now;
+    routes = finalize(cands.slice()).slice(0, 6); sel = 0; drawRoutes();
+    if (!shown && !quiet) fitRoutes();
+    shown = true;
+  };
+  await pool(tasks.map(task => async () => {
+    let res = null; try{ res = await task.fn(); }catch(e){}
+    addRes(task, res); done++;
+    if (my === buildId && !quiet && !navigating){
+      interim();
+      const st = document.getElementById("buildProg"); if (st) st.textContent = `Перебираю объезды… ${done} из ${tasks.length}`;
+      else if (!shown) setRoutesText(`Перебираю объезды… ${done} из ${tasks.length}`);
+    }
+  }), 3);
+  if (my !== buildId) return false;
+  building = false;
   if (!cands.length){
+    if (restoreRoutes()) { toast("Серверы маршрутов не отвечают: показываю сохранённые маршруты"); return true; }
     setRoutesText("Не удалось построить маршрут. Проверьте интернет и попробуйте снова.");
     return false;
   }
-  const minLen = Math.min(...cands.map(r => r.len));
-  cands = cands.filter(r => r.kind === "main" || r.len <= minLen*MAXX[cfg.maxExtra] + 300);
-  cands = dedupe(cands).slice(0, 10);
-  if (cfg.ttKey){ if (!quiet) setRoutesText(`Считаю пробки на ${cands.length} вариантах…`); await pool(cands.map(r => () => ttEvaluate(r)), 3); }
-  if (my !== buildId) return false;
-  cands.forEach(scoreRoute);
-  cands.sort((a, b) => a.score - b.score);
+  if (valhallaDown()) toast("Основной сервер маршрутов не отвечает, объезды строю через запасной (OSRM)");
+  let list = finalize(cands);
+  if (cfg.ttKey){
+    const need = list.filter(r => !r.tt).slice(0, 10);
+    if (need.length){ if (!quiet && !shown) setRoutesText(`Считаю пробки на ${need.length} вариантах…`); await pool(need.map(r => () => ttEvaluate(r)), 3); }
+    if (my !== buildId) return false;
+    list.forEach(scoreRoute); list.sort((a, b) => a.score - b.score);
+  }
   const prev = routes[sel];
-  routes = cands.slice(0, 6);
+  routes = list.slice(0, 6);
   sel = 0;
   if (navigating && prev) chooseAfterRebuild(prev);
   drawRoutes();
-  if (!navigating && !quiet) map.fitBounds(L.latLngBounds(routes.flatMap(r => [ll(r.coords[0]), ll(r.coords[r.coords.length-1])]).concat(routes[0].coords.map(ll))), {paddingTopLeft: [30, 150], paddingBottomRight: [70, sheetH() + 20]});
-  analyzeAll(routes);
+  if (!navigating && !quiet && !shown) fitRoutes();
+  analyzeAll(routes).then(saveRoutes);
+  saveRoutes();
   return true;
+}
+function fitRoutes(){
+  if (!routes.length) return;
+  map.fitBounds(L.latLngBounds(routes.flatMap(r => [ll(r.coords[0]), ll(r.coords[r.coords.length-1])]).concat(routes[0].coords.map(ll))), {paddingTopLeft: [30, 150], paddingBottomRight: [70, sheetH() + 20]});
+}
+/* сохраняем маршруты, чтобы работать без связи и после перезапуска */
+function saveRoutes(){
+  try{
+    const pack = routes.map(r => ({c: r.coords.map(p => [+p.lat.toFixed(6), +p.lon.toFixed(6)]), time: r.time, drive: r.drive, stop: r.stop, score: r.score, kind: r.kind, illegal: r.illegal, engine: r.engine,
+      m: r.maneuvers, viol: r.viol, limits: r.limits, tt: r.tt}));
+    store.set("routes", {t: Date.now(), dest, sel, pack});
+  }catch(e){}
+}
+function restoreRoutes(){
+  const s = store.get("routes", null);
+  if (!s || !s.pack || !dest || !s.dest || dist(s.dest, dest) > 30) return false;
+  routes = s.pack.map(x => { const coords = x.c.map(a => ({lat: a[0], lon: a[1]})), cum = cumOf(coords);
+    return {coords, cum, len: cum[cum.length-1], time: x.time, drive: x.drive, stop: x.stop, score: x.score, kind: x.kind, illegal: x.illegal, engine: x.engine, maneuvers: x.m, viol: x.viol, limits: x.limits, tt: x.tt, restored: s.t}; });
+  sel = Math.min(s.sel || 0, routes.length-1);
+  drawRoutes(); return true;
 }
 /* во время езды не дёргаем маршрут без причины: меняем, только если новый заметно лучше */
 let switchMsg = "";
@@ -1047,6 +1229,7 @@ function drawRoutes(){
     jams.forEach(j => { const pr = project(r, j); if (pr.d < (j.r || 70)) L.circleMarker(ll(j), {radius: 5, color: "#c5221f", fillColor: "#c5221f", fillOpacity: 1, interactive: false}).addTo(routeLayer); });
   }
   const box = document.getElementById("routes"); box.innerHTML = "";
+  if (building && !navigating){ const b = document.createElement("div"); b.className = "empty"; b.id = "buildProg"; b.textContent = "Перебираю объезды…"; box.appendChild(b); }
   const minDrive = Math.min(...routes.map(x => x.drive));
   routes.forEach((x, i) => {
     const b = document.createElement("button");
@@ -1056,6 +1239,10 @@ function drawRoutes(){
     const tags = [];
     if (i === 0) tags.push(`<span class="tag best">${cfg.avoidStop >= 2 ? "лучший: едем, не стоим" : "лучший"}</span>`);
     if (x.kind === "detour") tags.push(`<span class="tag">объезд</span>`);
+    if (x.engine) tags.push(`<span class="tag">${x.engine}</span>`);
+    if (x.restored) tags.push(`<span class="tag warn">сохранён ${ago(x.restored)}</span>`);
+    if (x.unpaved) tags.push(`<span class="tag warn">грунтовка ${fmtDist(x.unpaved)}</span>`);
+    const cw = curfewWarn(x.drive); if (cw) tags.push(`<span class="tag bad">${cw}</span>`);
     if (x.closure) tags.push(`<span class="tag bad">перекрытие на пути</span>`);
     if (x.viol){ const nv = x.viol.filter(v => v.sev === "v").length, nw = x.viol.length - nv;
       if (nv) tags.push(`<span class="tag bad">нарушений: ${nv}</span>`); if (nw) tags.push(`<span class="tag warn">дворы и др.: ${nw}</span>`); }
@@ -1130,7 +1317,8 @@ async function restrictionsIn(b){
   return byFrom;
 }
 async function traceEdges(r){
-  const attrs = ["edge.way_id", "edge.use", "edge.road_class", "edge.destination_only", "edge.names", "edge.begin_shape_index", "edge.end_shape_index", "shape"];
+  if (valhallaDown()) return null;
+  const attrs = ["edge.way_id", "edge.use", "edge.road_class", "edge.destination_only", "edge.names", "edge.begin_shape_index", "edge.end_shape_index", "edge.speed_limit", "edge.density", "edge.surface", "shape"];
   const base = {costing: "auto", costing_options: {auto: costing()}, filters: {attributes: attrs, action: "include"}};
   const tries = [];
   if (r.enc) tries.push(Object.assign({}, base, {encoded_polyline: r.enc, shape_match: "edge_walk"}));
@@ -1155,9 +1343,18 @@ async function analyze(r){
     if (tr){
       const {edges, shp} = tr;
       const at = idx => project(r, shp[Math.min(idx, shp.length-1)]).along;
-      let cur = null;
+      let cur = null; const limits = []; let unpaved = 0;
       edges.forEach(e => {
         const a0 = at(e.begin_shape_index), a1 = at(e.end_shape_index);
+        // ограничение скорости: из карты, а если не указано — по ПДР Украины (20 во дворах, 50 в городе, 90 за городом, 130 автомагистраль)
+        const yard = e.use === "living_street" || ["driveway", "alley", "parking_aisle", "drive_through"].includes(e.use);
+        let lim = e.speed_limit > 0 && e.speed_limit < 200 ? e.speed_limit : null, guess = !lim;
+        if (!lim) lim = yard ? 20 : e.road_class === "motorway" ? 130 : (e.density != null && e.density < 5) ? 90 : 50;
+        if (yard) lim = Math.min(lim, 20);
+        const L0 = limits[limits.length-1];
+        if (L0 && L0.v === lim && a0 - L0.a1 < 20) L0.a1 = a1; else limits.push({a0, a1, v: lim, guess});
+        const unp = ["compacted", "dirt", "gravel", "path", "impassable"].includes(e.surface);
+        if (unp || e.use === "track") unpaved += Math.max(0, a1 - a0);
         const nearEnds = a0 < 250 || a1 > r.len - 300;
         let c = null;
         if (e.use === "living_street") c = {key: "living", sev: nearEnds ? "w" : "v", title: nearEnds ? "Жилая зона (въезд к цели)" : "Сквозной проезд жилой зоны", text: "Знак «Жилая зона»: сквозной проезд запрещён, не быстрее 20 км/ч, пешеходы имеют преимущество (ПДР, п. 26.2)."};
@@ -1166,11 +1363,13 @@ async function analyze(r){
         else if (e.use === "emergency_access") c = {key: "emerg", sev: "v", title: "Проезд только для спецтранспорта", text: "Участок помечен как аварийный проезд."};
         else if (e.use === "track") c = {key: "track", sev: "w", title: "Грунтовая дорога", text: "Покрытие может быть плохим, особенно в дождь."};
         else if (e.use === "construction") c = {key: "constr", sev: "w", title: "Дорога на ремонте", text: "По данным карты участок строится или ремонтируется."};
+        else if (unp) c = {key: "unpaved", sev: "w", title: e.surface === "impassable" ? "Труднопроходимый участок" : "Без асфальта", text: "Гравий, грунт или полевая дорога. В дождь и на низкой машине может не проехать."};
         if (c && cur && cur.key === c.key && cur.sev === c.sev && a0 - cur.a1 < 30){ cur.a1 = a1; return; }
         if (cur) pushSeg(cur);
         cur = c ? Object.assign(c, {a0, a1, names: (e.names || [])[0] || ""}) : null;
       });
       if (cur) pushSeg(cur);
+      r.limits = limits; r.unpaved = unpaved;
       function pushSeg(s){
         const p = pointAt(r, (s.a0 + s.a1)/2);
         v.push({sev: s.sev, title: s.title, text: s.text + (s.names ? ` Улица: ${s.names}.` : ""), lat: p.lat, lon: p.lon, along: s.a0, a1: s.a1, seg: true});
@@ -1301,7 +1500,8 @@ const REP = {
 };
 let repTarget = null;
 function addReport(type, p){
-  reports.push({type, lat: p.lat, lon: p.lon, t: Date.now(), ttl: REP[type].ttl});
+  const rp = {id: rid(), type, lat: p.lat, lon: p.lon, t: Date.now(), ttl: REP[type].ttl};
+  reports.push(rp); groupPublish(rp);
   store.set("reports", reports); drawReports(); prepareRouteAlerts();
   toast(`${REP[type].e} ${REP[type].n}: отмечено`);
   if (["jam", "closure", "accident"].includes(type) && dest){ if (navigating) rebuildDuringNav("report"); else buildRoutes(null, true); }
@@ -1312,7 +1512,7 @@ function drawReports(){
   reports.forEach((r, i) => {
     const s = REP[r.type];
     L.marker([r.lat, r.lon], {icon: L.divIcon({className: "", html: `<div class="pin">${s.e}</div>`, iconSize: [30, 30], iconAnchor: [15, 15]})})
-      .bindPopup(() => popupEl([[`${s.n} · ${ago(r.t)}`, null], ["Убрать отметку", () => { reports.splice(i, 1); store.set("reports", reports); drawReports(); prepareRouteAlerts(); map.closePopup(); }, "red"]])).addTo(repLayer);
+      .bindPopup(() => popupEl([[`${s.n} · ${ago(r.t)}`, null], ["Убрать отметку", () => { groupDelete(r.id); reports.splice(i, 1); store.set("reports", reports); drawReports(); prepareRouteAlerts(); map.closePopup(); }, "red"]])).addTo(repLayer);
   });
 }
 function ago(t){ const m = Math.round((Date.now()-t)/60000); return m < 60 ? `${m} мин назад` : m < 1440 ? `${Math.round(m/60)} ч назад` : `${Math.round(m/1440)} дн назад`; }
@@ -1357,7 +1557,7 @@ function arrowSvg(type, size){
 let wakeLock = null, navTimer = null;
 async function startNav(){
   if (!routes[sel] || !est){ toast("Нет точки старта. Нажмите на карте «Я здесь»."); return; }
-  navigating = true; follow = true; warned = new Set();
+  navigating = true; follow = true; warned = new Set(); spoken.clear(); document.getElementById("speedo").hidden = false;
   along = project(routes[sel], est).along; spokenFor = -1;
   document.getElementById("navBanner").hidden = false;
   document.getElementById("searchForm").hidden = true; document.getElementById("trafficChip").hidden = true;
@@ -1371,7 +1571,7 @@ async function startNav(){
   setSheetH(); updateNav();
 }
 function stopNav(){
-  navigating = false; clearInterval(navTimer);
+  navigating = false; clearInterval(navTimer); document.getElementById("speedo").hidden = true;
   document.getElementById("navBanner").hidden = true; document.getElementById("navThen").hidden = true; document.getElementById("alertBar").hidden = true;
   document.getElementById("searchForm").hidden = false; document.getElementById("trafficChip").hidden = false;
   document.getElementById("planView").hidden = false; document.getElementById("navView").hidden = true;
@@ -1394,7 +1594,19 @@ function updateNav(){
   document.getElementById("etaMin").textContent = fmtTime(etaS);
   const arr = new Date(Date.now() + etaS*1000);
   document.getElementById("etaRest").textContent = `${fmtDist(left)} · прибытие ${arr.getHours()}:${String(arr.getMinutes()).padStart(2, "0")}`;
-  if (next && nd < 250 && spokenFor !== next.at){ spokenFor = next.at; say(next.verbal); }
+  if (next){
+    const fast = speedEst > 14;
+    const stage = nd < 70 ? "now" : nd < 330 ? "300" : (fast && nd < 1100 && nd > 800) ? "1000" : null;
+    const key = Math.round(next.at) + ":" + stage;
+    if (stage && !spoken.has(key) && !(stage === "300" && spoken.has(Math.round(next.at) + ":now"))){
+      spoken.add(key);
+      const v = (next.verbal || next.text || "").replace(/^Через [^,]+, /, "");
+      if (stage === "1000") say("Через километр " + lowerFirst(v));
+      else if (stage === "300" && nd > 120) say(`Через ${Math.round(nd/50)*50} метров ` + lowerFirst(v));
+      else if (stage === "now" || stage === "300") say("Сейчас " + lowerFirst(next.text || v));
+    }
+  }
+  updateSpeedo(r);
   // предупреждения впереди
   const bar = document.getElementById("alertBar");
   const al = (r.alerts || []).find(a => a.at > along - 10 && a.at - along < (a.kind === "cam" ? 600 : 350));
@@ -1415,6 +1627,8 @@ function updateNav(){
   }
   if (Date.now() - (updateNav.ext || 0) > 10000){ updateNav.ext = Date.now(); updateExternal(); }
 }
+const spoken = new Set();
+function lowerFirst(t){ return t ? t.charAt(0).toLowerCase() + t.slice(1) : ""; }
 function say(t){
   if (!cfg.voice || !("speechSynthesis" in window) || !t) return;
   try{ const u = new SpeechSynthesisUtterance(t); u.lang = "ru-RU"; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
@@ -1428,6 +1642,7 @@ function markJamAhead(auto){
     if (a + d >= r.len - 80) break;
     const p = pointAt(r, a + d); jams.push({lat: p.lat, lon: p.lon, r: 55, t: Date.now(), ttl: auto ? 30*60e3 : 2*36e5});
   }
+  const mid = pointAt(r, a + 400); groupPublish({id: rid(), type: "jam", lat: mid.lat, lon: mid.lon, t: Date.now(), ttl: auto ? 30*60e3 : 36e5});
   saveJams(); drawJams();
 }
 function stuck(){
@@ -1465,7 +1680,9 @@ map.on("click", e => {
     ["Сюда", () => { map.closePopup(); setDest(p, "Точка на карте"); }],
     ["Пробка тут", () => { map.closePopup(); addJam(p); toast("Отметка на 3 часа"); if (dest) buildRoutes(null, true); }],
     ["Отметить: полиция, камера, ДТП…", () => { map.closePopup(); repTarget = p; openPanel("reportPanel"); }],
-    ["Я здесь", () => { map.closePopup(); manualFix(p); }]
+    ["Я здесь", () => { map.closePopup(); manualFix(p); }],
+    ["Сделать «Дом»", () => { map.closePopup(); setFav("home", p); }],
+    ["Сделать «Работа»", () => { map.closePopup(); setFav("work", p); }]
   ])).openOn(map);
 });
 map.on("dragstart", () => { follow = false; });
@@ -1477,7 +1694,7 @@ map.on("moveend", () => {
 });
 function setDest(p, name){
   dest = {lat: p.lat, lon: p.lon, name};
-  store.set("dest", dest);
+  store.set("dest", dest); addRecent(dest);
   if (destMarker) destMarker.remove();
   destMarker = L.marker([p.lat, p.lon], {title: name}).addTo(map);
   if (navigating) stopNav();
@@ -1561,7 +1778,7 @@ el("clearJams").onclick = () => { jams = []; saveJams(); drawJams(); rebuildSoon
 el("clearHist").onclick = () => { hist = {}; store.set("hist", hist); toast("История поездок очищена"); renderSources(); };
 [["lyTraffic", "traffic", setTraffic], ["lyIncidents", "incidents", drawIncidents], ["lyCameras", "cameras", drawCams], ["lyReports", "reports", drawReports]].forEach(([id, k, fn]) =>
   el(id).addEventListener("change", () => { cfg.layers[k] = el(id).checked; saveCfg(); fn(); if (k === "traffic" && el(id).checked && !cfg.ttKey && !cfg.hereKey) toast("Для слоя пробок нужен ключ TomTom или HERE в настройках"); }));
-el("lyNight").addEventListener("change", () => { cfg.night = el("lyNight").checked; saveCfg(); setBase(); });
+el("lyNight").addEventListener("change", () => { cfg.night = el("lyNight").checked; cfg.nightAuto = false; el("lyNightAuto").checked = false; saveCfg(); setBase(); });
 el("violShow").addEventListener("change", updateViolUI);
 
 function st(cls, t){ return `<span class="st ${cls}">${esc(t)}</span>`; }
@@ -1639,6 +1856,300 @@ setTimeout(ipFix, 6000); setInterval(ipFix, 90000);
 setInterval(roadSnap, 12000);
 setInterval(tick, 500);
 setSheetH();
+
+/* ============ спидометр и ограничение скорости ============ */
+let overSince = 0, overSaid = 0;
+function curSpeed(){ return obdFresh() ? obd.v : (mode === "gps" ? speedEst : speedEst); }
+function updateSpeedo(r){
+  const kmh = Math.round(curSpeed()*3.6);
+  const spd = document.getElementById("spd"), lim = document.getElementById("lim");
+  spd.firstChild.nodeValue = kmh;
+  const L = r && r.limits ? r.limits.find(x => along >= x.a0 - 5 && along <= x.a1 + 5) : null;
+  if (!L){ lim.hidden = true; spd.classList.remove("over"); return; }
+  lim.hidden = false; lim.textContent = L.v; lim.title = L.guess ? "По ПДР (на карте не указано)" : "По данным карты";
+  const over = kmh > L.v + 10;
+  spd.classList.toggle("over", over);
+  const now = Date.now();
+  if (over){ if (!overSince) overSince = now; if (now - overSince > 3000 && now - overSaid > 60000){ overSaid = now; say(`Превышение. Ограничение ${L.v}`); } }
+  else overSince = 0;
+}
+
+/* ============ комендантский час ============ */
+cfg.curfew = Object.assign({on: true, from: "00:00", to: "05:00"}, cfg.curfew || {});
+const hm = s => { const [h, m] = String(s || "0:0").split(":").map(Number); return h*60 + (m || 0); };
+function inCurfew(d){
+  const m = d.getHours()*60 + d.getMinutes(), F = hm(cfg.curfew.from), T = hm(cfg.curfew.to);
+  return F < T ? (m >= F && m < T) : (m >= F || m < T);
+}
+function minsToCurfew(d){ const m = d.getHours()*60 + d.getMinutes(); let x = hm(cfg.curfew.from) - m; if (x < 0) x += 1440; return x; }
+function curfewWarn(driveSec){
+  if (!cfg.curfew.on || !driveSec) return "";
+  const now = new Date(), arr = new Date(Date.now() + driveSec*1000);
+  if (inCurfew(now)) return "сейчас комендантский час";
+  if (inCurfew(arr) || minsToCurfew(now) < driveSec/60) return "не успеваете до комендантского часа";
+  return "";
+}
+function updateCurfewChip(){
+  const c = document.getElementById("curfewChip");
+  if (!cfg.curfew.on){ c.hidden = true; return; }
+  const now = new Date();
+  if (inCurfew(now)){ c.hidden = false; c.className = "chip cur bad"; c.textContent = `Комендантский час до ${cfg.curfew.to}`; return; }
+  const m = minsToCurfew(now);
+  const r = routes[sel], left = r ? (r.drive || r.time)*(navigating && r.len ? (r.len - along)/r.len : 1)/60 : 0;
+  if (m > 120 && !(r && left > m)){ c.hidden = true; return; }
+  c.hidden = false; c.className = "chip cur" + (m < 30 || (r && left > m) ? " bad" : "");
+  c.textContent = `До комендантского часа ${m >= 60 ? Math.floor(m/60) + " ч " : ""}${m % 60} мин` + (r && left > m ? " · не успеваете" : "");
+}
+el("curOn").checked = cfg.curfew.on; el("curFrom").value = cfg.curfew.from; el("curTo").value = cfg.curfew.to;
+["curOn", "curFrom", "curTo"].forEach(id => el(id).addEventListener("change", () => {
+  cfg.curfew = {on: el("curOn").checked, from: el("curFrom").value || "00:00", to: el("curTo").value || "05:00"}; saveCfg(); updateCurfewChip(); if (routes.length) drawRoutes();
+}));
+setInterval(updateCurfewChip, 30000);
+
+/* ============ ночная карта по солнцу ============ */
+function sunAlt(p, d){
+  const rd = Math.PI/180, J = d.getTime()/864e5 + 2440587.5, n = J - 2451545;
+  const L = (280.46 + 0.9856474*n) % 360, g = (357.528 + 0.9856003*n) % 360;
+  const lam = L + 1.915*Math.sin(g*rd) + 0.02*Math.sin(2*g*rd), eps = 23.439 - 0.0000004*n;
+  const dec = Math.asin(Math.sin(eps*rd)*Math.sin(lam*rd));
+  const ra = Math.atan2(Math.cos(eps*rd)*Math.sin(lam*rd), Math.cos(lam*rd))/rd;
+  const gmst = (280.46061837 + 360.98564736629*n) % 360, ha = (gmst + p.lon - ra)*rd;
+  return Math.asin(Math.sin(p.lat*rd)*Math.sin(dec) + Math.cos(p.lat*rd)*Math.cos(dec)*Math.cos(ha))/rd;
+}
+if (cfg.nightAuto == null) cfg.nightAuto = true;
+el("lyNightAuto").checked = cfg.nightAuto;
+function autoNight(){
+  if (!cfg.nightAuto) return;
+  const n = sunAlt(est || {lat: KYIV[0], lon: KYIV[1]}, new Date()) < -3;
+  if (n !== cfg.night){ cfg.night = n; el("lyNight").checked = n; saveCfg(); setBase(); }
+}
+el("lyNightAuto").addEventListener("change", () => { cfg.nightAuto = el("lyNightAuto").checked; saveCfg(); autoNight(); });
+setInterval(autoNight, 300000);
+
+/* ============ Дом, Работа, недавние, подсказки при вводе ============ */
+let favs = store.get("favs", {}), recent = store.get("recent", []);
+function setFav(k, p){ favs[k] = {lat: p.lat, lon: p.lon, name: k === "home" ? "Дом" : "Работа"}; store.set("favs", favs); toast(k === "home" ? "Дом сохранён" : "Работа сохранена"); }
+function addRecent(d){ if (!d || d.name === "Дом" || d.name === "Работа") return; recent = [d, ...recent.filter(x => dist(x, d) > 30)].slice(0, 8); store.set("recent", recent); }
+const qIn = document.getElementById("q");
+function resultBtn(icon, title, sub, fn){
+  const b = document.createElement("button"); b.type = "button";
+  b.innerHTML = `<span style="font-size:18px;width:22px;text-align:center">${icon}</span><span>${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ""}</span>`;
+  b.onclick = () => { resultsBox.hidden = true; qIn.blur(); fn(); }; return b;
+}
+function showQuick(){
+  resultsBox.innerHTML = ""; resultsBox.hidden = false;
+  const row = document.createElement("div"); row.className = "sub";
+  [["home", "🏠 Дом"], ["work", "💼 Работа"]].forEach(([k, t]) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = t;
+    b.onclick = () => { if (!favs[k]){ toast("Нажмите на карте нужное место и выберите «Сделать " + (k === "home" ? "«Дом»" : "«Работа»") + "»"); return; } resultsBox.hidden = true; qIn.blur(); setDest(favs[k], favs[k].name); };
+    row.appendChild(b);
+  });
+  resultsBox.appendChild(row);
+  recent.forEach(d => resultsBox.appendChild(resultBtn("🕘", d.name || "Точка на карте", "", () => setDest(d, d.name))));
+  if (!recent.length){ const e = document.createElement("div"); e.className = "empty"; e.style.padding = "10px 14px"; e.textContent = "Здесь появятся недавние места"; resultsBox.appendChild(e); }
+}
+qIn.addEventListener("focus", () => { if (!qIn.value.trim()) showQuick(); });
+let acT, acN = 0;
+qIn.addEventListener("input", () => {
+  clearTimeout(acT);
+  const q = qIn.value.trim();
+  if (q.length < 3){ if (!q) showQuick(); return; }
+  acT = setTimeout(async () => {
+    const my = ++acN, c = est || {lat: KYIV[0], lon: KYIV[1]};
+    try{
+      const r = await fetchT(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=${c.lat}&lon=${c.lon}&limit=7`, {}, 8000);
+      const j = await r.json(); if (my !== acN) return;
+      resultsBox.innerHTML = ""; resultsBox.hidden = false;
+      (j.features || []).forEach(f => {
+        const p = f.properties || {}, g = f.geometry.coordinates;
+        const title = [p.name || p.street, p.name ? "" : p.housenumber].filter(Boolean).join(" ") || p.city || "Место";
+        const sub = [p.name && p.street ? p.street + (p.housenumber ? " " + p.housenumber : "") : "", p.district, p.city].filter(Boolean).join(", ");
+        resultsBox.appendChild(resultBtn("📍", title, sub, () => setDest({lat: g[1], lon: g[0]}, title)));
+      });
+      if (!resultsBox.children.length) resultsBox.innerHTML = '<button type="button" disabled>Нажмите «Найти» для точного поиска</button>';
+    }catch(e){}
+  }, 350);
+});
+map.on("click", () => { resultsBox.hidden = true; });
+
+/* ============ общие отметки с друзьями (ntfy.sh, бесплатно, без регистрации) ============ */
+const NTFY = "https://ntfy.sh/";
+function rid(){ return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+let groupSince = store.get("groupSince", "12h");
+async function groupPublish(rp){
+  if (!cfg.group) return;
+  try{ await fetchT(NTFY + cfg.group, {method: "POST", body: JSON.stringify({k: "rep", id: rp.id, type: rp.type, lat: +rp.lat.toFixed(5), lon: +rp.lon.toFixed(5), t: rp.t, ttl: rp.ttl})}, 10000); }catch(e){}
+}
+async function groupDelete(id){
+  if (!cfg.group || !id) return;
+  try{ await fetchT(NTFY + cfg.group, {method: "POST", body: JSON.stringify({k: "del", id})}, 10000); }catch(e){}
+}
+let groupOk = null, groupLast = 0;
+async function groupPoll(){
+  if (!cfg.group) return;
+  try{
+    const r = await fetchT(`${NTFY}${cfg.group}/json?poll=1&since=${encodeURIComponent(groupSince)}`, {}, 12000);
+    const txt = await r.text(); groupOk = r.ok; if (!r.ok) return;
+    let changed = false;
+    txt.split("\n").filter(Boolean).forEach(line => {
+      let m; try{ m = JSON.parse(line); }catch(e){ return; }
+      if (m.event !== "message") return;
+      groupSince = m.id;
+      let d; try{ d = JSON.parse(m.message); }catch(e){ return; }
+      if (d.k === "rep" && REP[d.type] && !reports.some(x => x.id === d.id) && Date.now() - d.t < d.ttl){
+        reports.push({id: d.id, type: d.type, lat: d.lat, lon: d.lon, t: d.t, ttl: d.ttl, g: true}); changed = true; groupLast = Date.now();
+        if (navigating && est && dist(est, d) < 3000 && d.type !== "camera") toast(`${REP[d.type].e} Друзья отметили: ${REP[d.type].n}`);
+      }
+      if (d.k === "del"){ const i = reports.findIndex(x => x.id === d.id); if (i >= 0){ reports.splice(i, 1); changed = true; } }
+    });
+    store.set("groupSince", groupSince);
+    if (changed){
+      store.set("reports", reports); drawReports(); prepareRouteAlerts();
+      if (dest && reports.some(x => x.g && (x.type === "jam" || x.type === "closure") && Date.now() - x.t < 60000)){ if (navigating) rebuildDuringNav("group"); }
+    }
+  }catch(e){ groupOk = false; }
+}
+function groupLink(){ return location.origin + location.pathname + "?g=" + encodeURIComponent(cfg.group); }
+function renderGroup(){
+  const box = el("groupInfo");
+  if (!cfg.group){ box.innerHTML = srcRow("Группа", "Создайте группу и отправьте ссылку друзьям", st("mid", "нет группы")); el("groupShare").disabled = true; el("groupLeave").disabled = true; return; }
+  const n = reports.filter(x => x.g).length;
+  box.innerHTML = srcRow("Группа подключена", `Отметок от друзей: ${n}`, groupOk === false ? st("bad", "нет связи") : st("ok", "работает"));
+  el("groupShare").disabled = false; el("groupLeave").disabled = false;
+}
+el("groupNew").onclick = () => { cfg.group = "obyezd-" + rid() + rid(); groupSince = "12h"; saveCfg(); renderGroup(); toast("Группа создана. Нажмите «Пригласить»"); };
+el("groupShare").onclick = async () => {
+  const url = groupLink();
+  try{ if (navigator.share){ await navigator.share({title: "Объезд: общие отметки", text: "Подключайся к моей группе в навигаторе «Объезд»", url}); return; } }catch(e){ return; }
+  try{ await navigator.clipboard.writeText(url); toast("Ссылка скопирована"); }catch(e){ prompt("Ссылка для друзей:", url); }
+};
+el("groupLeave").onclick = () => { cfg.group = ""; saveCfg(); reports = reports.filter(x => !x.g); store.set("reports", reports); drawReports(); renderGroup(); };
+(() => {
+  const g = new URLSearchParams(location.search).get("g");
+  if (g && /^obyezd-[a-z0-9]+$/.test(g) && g !== cfg.group){ cfg.group = g; groupSince = "12h"; saveCfg(); setTimeout(() => toast("Вы подключились к группе друзей: общие отметки включены"), 1500); }
+  if (g) history.replaceState(null, "", location.pathname);
+})();
+setInterval(groupPoll, 20000); setTimeout(groupPoll, 2000);
+
+/* ============ OBD-адаптер через Bluetooth (браузер Bluefy) ============ */
+const obd = {v: 0, t: 0, on: false, tx: null, buf: "", wait: null};
+function obdFresh(){ return obd.on && Date.now() - obd.t < 2500; }
+function obdSend(cmd, ms = 2000){
+  return new Promise(res => {
+    obd.buf = ""; obd.wait = res;
+    const data = new TextEncoder().encode(cmd + "\r");
+    const w = obd.tx.properties.writeWithoutResponse ? obd.tx.writeValueWithoutResponse(data) : obd.tx.writeValue(data);
+    w.catch(() => {});
+    setTimeout(() => { if (obd.wait === res){ obd.wait = null; res(obd.buf); } }, ms);
+  });
+}
+async function obdConnect(){
+  if (!navigator.bluetooth){ toast("Этот браузер не умеет Bluetooth. Откройте навигатор в бесплатном браузере Bluefy."); return; }
+  try{
+    const dev = await navigator.bluetooth.requestDevice({acceptAllDevices: true, optionalServices: [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"]});
+    const gatt = await dev.gatt.connect();
+    let rx = null, tx = null;
+    for (const svc of await gatt.getPrimaryServices()){
+      for (const ch of await svc.getCharacteristics()){
+        if (!rx && (ch.properties.notify || ch.properties.indicate)) rx = ch;
+        if (!tx && (ch.properties.write || ch.properties.writeWithoutResponse)) tx = ch;
+      }
+      if (rx && tx) break;
+    }
+    if (!rx || !tx) throw new Error("адаптер не похож на ELM327");
+    obd.tx = tx;
+    await rx.startNotifications();
+    rx.addEventListener("characteristicvaluechanged", e => {
+      obd.buf += new TextDecoder().decode(e.target.value);
+      if (obd.buf.includes(">") && obd.wait){ const f = obd.wait; obd.wait = null; f(obd.buf); }
+    });
+    dev.addEventListener("gattserverdisconnected", () => { obd.on = false; el("obdChip").hidden = false; el("obdTxt").textContent = "отключён"; });
+    for (const c of ["ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"]) await obdSend(c, c === "ATZ" ? 3000 : 1500);
+    obd.on = true; el("obdChip").hidden = false; toast("OBD подключён: скорость берётся с колёс");
+    (async function loop(){
+      while (obd.on){
+        const resp = (await obdSend("010D", 1500)).replace(/\s/g, "").toUpperCase();
+        const m = resp.match(/410D([0-9A-F]{2})/);
+        if (m){ obd.v = parseInt(m[1], 16)/3.6; obd.t = Date.now(); el("obdTxt").textContent = Math.round(obd.v*3.6) + " км/ч"; }
+        await new Promise(r => setTimeout(r, 400));
+      }
+    })();
+  }catch(e){ if (e && e.name !== "NotFoundError") toast("OBD: " + (e.message || "не удалось подключиться")); }
+}
+el("obdBtn").onclick = obdConnect;
+if (!navigator.bluetooth) el("obdBtn").textContent = "Подключить OBD (нужен Bluefy)";
+
+/* ============ журнал поездки ============ */
+let logBuf = [];
+setInterval(() => {
+  if (!est) return;
+  if (!navigating && speedEst < 1 && mode === "gps") return;
+  const raw = lastRaw && Date.now() - lastRaw.t < 2000 ? [+lastRaw.lat.toFixed(6), +lastRaw.lon.toFixed(6), Math.round(lastRaw.acc), lastRaw.spd, lastRaw.hdg] : null;
+  logBuf.push({t: Date.now(), m: mode, e: [+est.lat.toFixed(6), +est.lon.toFixed(6), Math.round(est.unc)], raw, v: +speedEst.toFixed(2),
+    mv: motion.on ? motion.moving : null, h: heading() != null ? Math.round(heading()) : null, turn: Math.round(recentTurn()),
+    obd: obdFresh() ? +obd.v.toFixed(2) : null, a: navigating ? Math.round(along) : null, rej: srcs.rejected});
+  if (logBuf.length > 4*3600) logBuf.shift();
+  if (!el("setPanel").hidden) el("logN").textContent = logBuf.length;
+}, 1000);
+el("logSave").onclick = async () => {
+  if (!logBuf.length) return toast("Журнал пуст: он пишется во время поездки");
+  const r = routes[sel];
+  const data = {app: "obyezd", v: 3, saved: new Date().toISOString(), ua: navigator.userAgent, dest,
+    route: r ? r.coords.filter((p, i) => i % 3 === 0).map(p => [+p.lat.toFixed(6), +p.lon.toFixed(6)]) : null, log: logBuf};
+  const d = new Date(), name = `obyezd-log-${d.getFullYear()}${String(d.getMonth()+1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}.json`;
+  const file = new File([JSON.stringify(data)], name, {type: "application/json"});
+  try{ if (navigator.canShare && navigator.canShare({files: [file]})){ await navigator.share({files: [file], title: name}); return; } }catch(e){ return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+};
+el("logClear").onclick = () => { logBuf = []; el("logN").textContent = 0; };
+
+/* ============ офлайн: приложение и карта в памяти телефона ============ */
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+function onlineChip(){ el("offChip").hidden = navigator.onLine; }
+window.addEventListener("online", () => { onlineChip(); if (dest && !navigating) buildRoutes(null, true); });
+window.addEventListener("offline", onlineChip);
+onlineChip();
+function tileXY(p, z){
+  const n = 2**z, x = Math.floor((p.lon + 180)/360*n);
+  const y = Math.floor((1 - Math.log(Math.tan(rad(p.lat)) + 1/Math.cos(rad(p.lat)))/Math.PI)/2*n);
+  return [x, y];
+}
+function tileUrl(z, x, y){ return `https://api.tomtom.com/map/1/tile/basic/main/${z}/${x}/${y}.png?key=${encodeURIComponent(cfg.ttKey)}&tileSize=256`; }
+async function downloadTiles(list){
+  if (!cfg.ttKey){ toast("Заранее скачивать можно только карту TomTom: правила OpenStreetMap это запрещают. Вставьте ключ TomTom. Без него карта сохраняется по мере просмотра."); return; }
+  const prog = el("dlProg"), bar = prog.firstElementChild; prog.hidden = false; let done = 0;
+  await pool(list.map(([z, x, y]) => async () => { try{ await fetch(tileUrl(z, x, y)); }catch(e){} done++; bar.style.width = (100*done/list.length) + "%"; }), 6);
+  toast(`Сохранено участков карты: ${list.length}`); setTimeout(() => prog.hidden = true, 1500); cacheInfo();
+}
+el("dlArea").onclick = () => {
+  const c = est || {lat: map.getCenter().lat, lon: map.getCenter().lng}, set = new Set(), list = [];
+  for (let z = 12; z <= 17; z++){
+    const a = tileXY(move(move(c, 0, 5000), 270, 5000), z), b = tileXY(move(move(c, 180, 5000), 90, 5000), z);
+    for (let x = a[0]; x <= b[0]; x++) for (let y = a[1]; y <= b[1]; y++){ const k = z + "/" + x + "/" + y; if (!set.has(k)){ set.add(k); list.push([z, x, y]); } }
+  }
+  if (confirm(`Скачать ${list.length} участков карты вокруг вас? Это около ${Math.round(list.length*25/1024)} МБ.`)) downloadTiles(list);
+};
+el("dlRoute").onclick = () => {
+  const r = routes[sel]; if (!r) return toast("Сначала постройте маршрут");
+  const set = new Set(), list = [];
+  for (let a = 0; a <= r.len; a += 80){
+    const p = pointAt(r, a);
+    for (let z = 13; z <= 17; z++){
+      const [x, y] = tileXY(p, z), d = z >= 16 ? 1 : 0;
+      for (let dx = -d; dx <= d; dx++) for (let dy = -d; dy <= d; dy++){ const k = z + "/" + (x+dx) + "/" + (y+dy); if (!set.has(k)){ set.add(k); list.push([z, x+dx, y+dy]); } }
+    }
+  }
+  if (confirm(`Скачать ${list.length} участков карты вдоль маршрута? Это около ${Math.round(list.length*25/1024)} МБ.`)) downloadTiles(list);
+};
+async function cacheInfo(){
+  try{ const c = await caches.open("obz-tiles"); const n = (await c.keys()).length; el("cacheInfo").textContent = `В памяти телефона: ${n} участков карты.`; }catch(e){}
+}
+
+/* ============ дополнения к настройкам и запуску ============ */
+const _renderSources = renderSources;
+renderSources = function(){ _renderSources(); renderGroup(); el("logN").textContent = logBuf.length; cacheInfo(); };
+if (!navigator.onLine && dest) restoreRoutes();
+autoNight(); updateCurfewChip();
 </script>
 </body>
 </html>
