@@ -228,7 +228,7 @@ function bearingAt(route, along, span = 25){
 
 /* ============ карта ============ */
 const map = L.map("map", {zoomControl: false, attributionControl: true}).setView(KYIV, 13);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 20, subdomains: "abcd",
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © CARTO · маршруты Valhalla'
 }).addTo(map);
