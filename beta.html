@@ -150,11 +150,11 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 /* карта */
 .leaflet-popup-content-wrapper{border-radius:14px;box-shadow:var(--sh)}
 .leaflet-popup-content{margin:12px;display:grid;gap:6px;min-width:180px;font-family:var(--font);font-size:14px}
-.leaflet-popup-content button{min-height:40px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--blue);font-weight:500}
+.leaflet-popup-content button{min-height:40px;border-radius:20px;border:1px solid var(--line);background:var(--bg);color:var(--blue);font-weight:500}
 .leaflet-popup-content button.red{color:var(--red)}
 .leaflet-popup-content p{margin:0;line-height:1.4}
 .leaflet-control-attribution{font-size:10px;background:rgba(255,255,255,.75)!important}
-.pin{font-size:20px;line-height:28px;width:30px;height:30px;text-align:center;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.pin{font-size:20px;line-height:28px;width:30px;height:30px;text-align:center;background:var(--bg);border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 .vpin{width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;font-weight:700;font-size:14px;line-height:24px;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .vpin.w{background:#f9ab00}
 .car{width:34px;height:54px;transition:transform .45s ease-out;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
@@ -162,15 +162,38 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 .car .roof{fill:#4f95f0}.car.dr .roof{fill:#fbbc04}.car.spoof .roof{fill:#ea6b60}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sheetH,200px) + 20px);z-index:4000;background:#323232;color:#fff;padding:12px 18px;border-radius:8px;font-size:14px;max-width:88vw;text-align:center;box-shadow:var(--sh)}
 .speedo{position:fixed;left:max(12px,env(safe-area-inset-left,0px));bottom:calc(var(--sheetH,200px) + 14px);z-index:999;display:flex;gap:8px;align-items:center;transition:bottom .2s}
-.spd{width:58px;height:58px;border-radius:50%;background:#fff;box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:500;font-size:21px;line-height:1;font-variant-numeric:tabular-nums}
+.spd{width:58px;height:58px;border-radius:50%;background:var(--bg);color:var(--text);box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:500;font-size:21px;line-height:1;font-variant-numeric:tabular-nums}
 .spd small{font-size:10px;color:var(--sub);font-weight:400;margin-top:2px}
 .spd.over{background:var(--red);color:#fff}.spd.over small{color:#fff}
-.lim{width:46px;height:46px;border-radius:50%;background:#fff;border:5px solid #d93025;display:grid;place-items:center;font-weight:700;font-size:16px;box-shadow:var(--sh);font-variant-numeric:tabular-nums}
+.lim{width:46px;height:46px;border-radius:50%;background:#fff;color:#202124;border:5px solid #d93025;display:grid;place-items:center;font-weight:700;font-size:16px;box-shadow:var(--sh);font-variant-numeric:tabular-nums}
 .chip.cur{background:#fef7e0;color:#b06000}.chip.cur.bad{background:var(--redbg);color:var(--red)}
 .results .sub{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--soft);overflow-x:auto}
 .results .sub button{width:auto;border:1px solid var(--line);border-radius:16px;padding:6px 12px;flex:none;font-weight:500;font-size:13px}
-.sel,.tin{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;background:#fff}
+.sel,.tin{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;background:var(--bg);color:var(--text)}
 .prog{height:4px;background:var(--soft);border-radius:2px;overflow:hidden;margin-top:6px}.prog i{display:block;height:100%;width:0;background:var(--blue)}
+/* тёмная тема */
+body.dark{--blue:#8ab4f8;--blue2:#aecbfa;--bluebg:#1f2a3c;--text:#e8eaed;--sub:#9aa0a6;--line:#3c4043;--bg:#202124;--soft:#303134;--green:#81c995;--orange:#fdd663;--red:#f28b82;--redbg:#3c1f1e;
+  --sh:0 1px 3px rgba(0,0,0,.6),0 4px 8px 3px rgba(0,0,0,.35);color-scheme:dark;background:#121212}
+body.dark .btn.primary{color:#202124}
+body.dark .btn.danger{color:#202124}
+body.dark .tag.best{background:#1e3a2a}
+body.dark .tag.warn,body.dark .warnline{background:#3a3220;color:#fdd663}
+body.dark .src .st.ok{background:#1e3a2a}
+body.dark .src .st.mid{background:#3a3220;color:#fdd663}
+body.dark .chip.cur{background:#3a3220;color:#fdd663}
+body.dark .fab.report{background:#fbbc04;color:#202124}
+body.dark .leaflet-popup-content-wrapper,body.dark .leaflet-popup-tip{background:#2d2e31;color:var(--text)}
+body.dark .leaflet-container a.leaflet-popup-close-button{color:var(--sub)}
+body.dark .leaflet-control-attribution{background:rgba(32,33,36,.75)!important;color:#9aa0a6}
+body.dark .leaflet-control-attribution a{color:#9aa0a6}
+body.dark .sw{background:#5f6368}
+body.dark #illegal:checked{background:var(--red)}
+body.dark .vi .ic.w,body.dark .vpin.w{background:#f9ab00}
+body.dark .navthen{background:#0a5124}
+body.dark .panel{background:rgba(0,0,0,.55)}
+.seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;border-radius:9px;padding:9px 6px;font-weight:500;font-size:14px;color:var(--sub)}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.25)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -261,6 +284,8 @@ input[type=range]{width:100%;accent-color:var(--blue)}
   <div class="box">
     <div class="phead"><h2>Слои карты</h2><button class="ibtn" type="button" data-close aria-label="Закрыть"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
     <div class="set">
+      <div><div class="lbl" style="margin-bottom:6px"><span>Тема оформления</span><small>«Авто» включает тёмную тему после заката</small></div>
+        <div class="seg" data-theme-seg><button type="button" data-t="auto">Авто</button><button type="button" data-t="light">Светлая</button><button type="button" data-t="dark">Тёмная</button></div></div>
       <label for="lyTraffic"><span class="lbl"><span>Пробки</span><small id="lyTrafficHint">Цветные линии на дорогах. Нужен бесплатный ключ TomTom или HERE в настройках.</small></span><input type="checkbox" class="sw" id="lyTraffic"></label>
       <label for="lyIncidents"><span class="lbl"><span>ДТП, ремонты, перекрытия</span><small>Из TomTom и HERE, если указан ключ</small></span><input type="checkbox" class="sw" id="lyIncidents"></label>
       <label for="lyCameras"><span class="lbl"><span>Камеры</span><small id="camHint">Камеры скорости и светофоров из OpenStreetMap</small></span><input type="checkbox" class="sw" id="lyCameras"></label>
@@ -284,6 +309,12 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 <div class="panel" id="setPanel" hidden>
   <div class="box">
     <div class="phead"><h2>Настройки</h2><button class="ibtn" type="button" data-close aria-label="Закрыть"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
+
+    <div class="sec"><h3>Оформление</h3>
+      <div class="set"><div><div class="lbl" style="margin-bottom:6px"><span>Тема оформления</span><small>«Авто» включает тёмную тему после заката</small></div>
+  <div class="seg" data-theme-seg><button type="button" data-t="auto">Авто</button><button type="button" data-t="light">Светлая</button><button type="button" data-t="dark">Тёмная</button></div></div>
+</div>
+    </div>
 
     <div class="sec"><h3>Маршрут</h3>
       <div class="set">
@@ -1935,11 +1966,24 @@ function sunAlt(p, d){
 }
 if (cfg.nightAuto == null) cfg.nightAuto = true;
 el("lyNightAuto").checked = cfg.nightAuto;
+function isNightNow(){ return sunAlt(est || {lat: KYIV[0], lon: KYIV[1]}, new Date()) < -3; }
 function autoNight(){
+  applyTheme();
   if (!cfg.nightAuto) return;
-  const n = sunAlt(est || {lat: KYIV[0], lon: KYIV[1]}, new Date()) < -3;
+  const n = cfg.theme === "dark" ? true : cfg.theme === "light" ? false : isNightNow();
   if (n !== cfg.night){ cfg.night = n; el("lyNight").checked = n; saveCfg(); setBase(); }
 }
+/* тема оформления: авто (по солнцу), светлая, тёмная */
+if (!cfg.theme) cfg.theme = "auto";
+function applyTheme(){
+  const dark = cfg.theme === "dark" || (cfg.theme === "auto" && isNightNow());
+  document.body.classList.toggle("dark", dark);
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = dark ? "#202124" : "#ffffff";
+  document.querySelectorAll("[data-theme-seg] button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === cfg.theme));
+}
+document.querySelectorAll("[data-theme-seg] button").forEach(b => b.onclick = () => {
+  cfg.theme = b.dataset.t; cfg.nightAuto = true; el("lyNightAuto").checked = true; saveCfg(); autoNight();
+});
 el("lyNightAuto").addEventListener("change", () => { cfg.nightAuto = el("lyNightAuto").checked; saveCfg(); autoNight(); });
 setInterval(autoNight, 300000);
 
